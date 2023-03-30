@@ -1,2 +1,2 @@
 # MyLib
-My persona pascal libraries
+My Library
