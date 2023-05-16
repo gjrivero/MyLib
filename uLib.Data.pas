@@ -4,7 +4,7 @@ interface
 
 uses
   System.SysUtils, System.Classes,
-  System.JSON, Data.DB, System.UITypes, FireDAC.Stan.Intf, FireDAC.Stan.Option,
+  System.JSON, System.UITypes, FireDAC.Stan.Intf, FireDAC.Stan.Option,
   FireDAC.Stan.Error, FireDAC.UI.Intf, FireDAC.Phys.Intf, FireDAC.Stan.Def,
   FireDAC.Stan.Pool, FireDAC.Stan.Async, FireDAC.Phys, FireDAC.Phys.SQLite,
   FireDAC.Phys.SQLiteDef, FireDAC.Stan.ExprFuncs, FireDAC.Stan.Param,
@@ -23,17 +23,17 @@ uses
   ,FireDAC.Phys.PG
   ,FireDAC.Phys.PGDef
 {$ENDIF}
-  ,System.Generics.Collections;
+  ,System.Generics.Collections, Data.DB;
 
 type
   TFDM = class(TDataModule)
     Cnx: TFDConnection;
-    Qry: TFDQuery;
-    Cmd: TFDCommand;
     WaitCursor: TFDGUIxWaitCursor;
     EventAlerter1: TFDEventAlerter;
     SQLiteDriver: TFDPhysSQLiteDriverLink;
     SQLiteSecurity: TFDSQLiteSecurity;
+    Qry: TFDQuery;
+    Cmd: TFDCommand;
     procedure DataModuleCreate(Sender: TObject);
     procedure DataModuleDestroy(Sender: TObject);
     procedure CnxBeforeConnect(Sender: TObject);
@@ -49,20 +49,24 @@ type
     procedure SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
     function  ParamsToJSONObject(params: TFDParams): TJSONObject;
 
-    function cmdExecute( sCmd: TStringList; pParams: TFDParams=Nil): Integer;
-    function qryExecute( sCmd: TStringList; pParams: TFDParams=Nil; fldsReturn: String=''): TDataSet;
+    function cmdExecute( sCmd: TStringList;
+                         pParams: TFDParams=Nil): Integer;
+    function qryExecute( sCmd: TStringList;
+                         pParams: TFDParams=Nil;
+                         fldsReturn: String=''): TJSONObject;
 
     function cmdAdd(Const dbTableName,
                           Context: String;
-                          fldsReturn: String=''): string;
+                          fldsReturn: String=''): TJSONObject;
 
     function cmdUpd(Const dbTableName,
                           Context: String;
                           Condition: String): Integer;
     function cmdDel( Const dbTableName, sWhere: String): Integer;
 
-    function getRecords(Const sQuery: String;
-                              pParams: TFDParams=nil): TDataSet; Overload;
+    function GetRecords(Const sQuery: String;
+                              pParams: TFDParams=nil): TJSONArray;
+
     function executeScripts( sQuery: TStrings;
                              pParams: TFDParams=nil): Integer;
     function executeCmd( Const sQuery: String;
@@ -109,23 +113,23 @@ function sqlWhere( const fldNames:  Array of String;
                    const fldValues: Array of Const): String;  Overload;
 
 function GetData( const sQuery: String;
-                        pParams: TFDParams=Nil): TDataSet; Overload;
+                        pParams: TFDParams=Nil): TJSONArray; Overload;
 function GetData( sQuery: TStrings;
-                  pParams: TFDParams=nil): TDataSet; Overload;
+                  pParams: TFDParams=nil): TJSONArray; Overload;
 function GetData( const sQuery: String;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): TDataSet; Overload;
+                  const fldValues: Array of const): TJSONArray; Overload;
 function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): TDataSet; Overload;
+                  const fldValues: Array of const): TJSONArray; Overload;
 
 function AddData( const dbTableName,
                         Context: String;
-                        fldsReturn: String='' ): string; Overload;
+                        fldsReturn: String='' ): TJSONObject; Overload;
 function AddData( const dbTableName: string;
                   const fldNames: Array of String;
                   const fldValues: Array of const;
-                        fldsReturn: String='' ): string; Overload;
+                        fldsReturn: String='' ): TJSONObject; Overload;
 
 function UpdData( const dbTableName, Context, Condition: String): Integer; Overload;
 function UpdData( const dbTableName: String;
@@ -484,6 +488,36 @@ begin
 {$ENDIF}
 end;
 
+function fnCreateQuery(sQry: String=''; pParams: TFDParams=Nil): TFDQuery;
+begin
+  result:=TFDQuery.Create(FDM);
+  result.Connection:=FDM.Cnx;
+  result.SQL.Text:=sQry;
+  if pParams<>Nil then
+     result.Params:=pParams;
+  if (sQry<>'') then
+     Try
+       result.OpenOrExecute;
+     Except
+       result.SQL.SaveToFile('qry'+FormatDateTime('mmddhhnnss',Now)+'.txt');
+     End;
+end;
+
+function fnCreateCommand(sQry: String=''; pParams: TFDParams=Nil): TFDCommand;
+begin
+  result:=TFDCommand.Create(FDM);
+  result.Connection:=FDM.Cnx;
+  result.CommandText.Text:=sQry;
+  if pParams<>Nil then
+     result.Params:=pParams;
+  if sQry<>'' then
+     Try
+       result.OpenOrExecute;
+     Except
+       result.CommandText.SaveToFile('cmd'+FormatDateTime('mmddhhnnss',Now)+'.txt');
+     End;
+end;
+
 procedure TFDM.SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
 Var
   userId,
@@ -610,12 +644,14 @@ begin
 end;
 
 function TFDM.cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil): Integer;
-Var aHeader: TStringList;
-    a: Boolean;
+Var
+   aHeader: TStringList;
+   a: Boolean;
 begin
   aHeader:=TStringList.Create;
   SetHeader(aHeader,True);
   aHeader.Add(sCmd.Text);
+  Cmd.CommandText.Clear;
   Cmd.CommandText.Assign(aHeader);
   if HeaderEnabled then
      case Cnx.RDBMSKind Of
@@ -646,11 +682,12 @@ begin
   aHeader.Destroy;
 end;
 
-function TFDM.QryExecute(sCmd: TStringList; pParams: TFDParams=Nil; fldsReturn: String=''): TDataSet;
+function TFDM.QryExecute(sCmd: TStringList; pParams: TFDParams=Nil; fldsReturn: String=''): TJSONObject;
 Var aHeader: TStringList;
 begin
   aHeader:=TStringList.Create;
   SetHeader(aHeader,True);
+  Qry.SQL.Clear;
   Qry.SQL.Assign(aHeader);
   Qry.SQL.Add(sCmd.Text);
   if HeaderEnabled then
@@ -669,7 +706,7 @@ begin
     //Qry.SQL.SaveToFile('commit.txt');
     Qry.OpenOrExecute;
     //Qry.GetResults;
-    Result:=Qry;
+    Result:=Qry.AsJSONObject;
     if Not autoCommit then
        Cnx.Commit;
   except
@@ -685,7 +722,7 @@ end;
 
 function TFDM.cmdAdd( const dbTableName,
                             Context: String;
-                            fldsReturn: String=''): String;
+                            fldsReturn: String=''): TJSONObject;
 
   procedure InsTable( iSQL: TStringList;
                       const DBTABLE: String;
@@ -750,7 +787,7 @@ begin
          GetFieldsvalues(Context,sFields,sValues,sSetVal);
          InsTable(sCmd,dbTableName,sFields,sValues);
        end;
-    result:=qryExecute(sCmd,Nil,fldsReturn).AsJSONObjectString;
+    result:=qryExecute(sCmd,Nil,fldsReturn);
   finally
     sCmd.Destroy;
   end;
@@ -839,28 +876,27 @@ begin
   result:=ExecuteCmd(sQuery.Text,pParams);
 end;
 
-function TFDM.GetRecords(Const sQuery: String; pParams: TFDParams=Nil): TDataSet;
+function TFDM.GetRecords(Const sQuery: String; pParams: TFDParams=Nil): TJSONArray;
 Var aHeader: TStringList;
 begin
   aHeader:=TStringList.Create;
   SetHeader(aHeader);
+  Qry.SQL.Clear;
   Qry.SQL.Assign(aHeader);
   Qry.SQL.Add(sQuery);
   if pParams<>Nil then
-     begin
-       Qry.Params:=pParams;
-       Qry.Prepare;
-     end;
+     Qry.Params:=pParams;
+  Qry.Prepare;
   try
     Qry.Open;
   except
     on E: EFDDBEngineException do begin
-            Qry.SQL.SaveToFile('cmd'+FormatDateTime('mmddhhnnss',Now)+'.txt');
+            Qry.SQL.SaveToFile('qry'+FormatDateTime('mmddhhnnss',Now)+'.txt');
             raise Exception.Create(E.Message);
           end;
   end;
   aHeader.Destroy;
-  Result:=Qry;
+  Result:=Qry.AsJSONArray();
 end;
 
 procedure TFDM.CnxBeforeConnect(Sender: TObject);
@@ -898,8 +934,7 @@ end;
 //-------------------------------------------------------
 
 function GetData( const sQuery: String;
-                   pParams: TFDParams=nil
-                ): TDataSet; overload;
+                   pParams: TFDParams=nil): TJSONArray; overload;
 begin
   try
     Result:=FDM.GetRecords(sQuery,pParams);
@@ -909,7 +944,7 @@ end;
 
 function GetData( const sQuery: String;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): TDataSet; overload;
+                  const fldValues: Array of const): TJSONArray; overload;
 Var
    pParams: TFDParams;
 begin
@@ -921,8 +956,8 @@ begin
   End;
 end;
 
-function GetData(sQuery: TStrings;
-                   pParams: TFDParams=nil): TDataSet;  overload;
+function GetData( sQuery: TStrings;
+                  pParams: TFDParams=nil): TJSONArray;  overload;
 begin
   try
     Result:=FDM.GetRecords(sQuery.Text,pParams);
@@ -932,7 +967,7 @@ end;
 
 function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): TDataSet;  overload;
+                  const fldValues: Array of const): TJSONArray;  overload;
 Var
    pParams: TFDParams;
 begin
@@ -946,7 +981,7 @@ end;
 
 function AddData( Const dbTableName,
                         Context: String;
-                        fldsReturn: String='' ): string; Overload;
+                        fldsReturn: String='' ): TJSONObject; Overload;
 begin
   try
     Result:=FDM.cmdAdd(dbTableName,Context,fldsReturn);
@@ -957,7 +992,7 @@ end;
 function AddData( Const dbTableName: string;
                   const fldNames:  Array of String;
                   const fldValues: Array of const;
-                        fldsReturn: String='' ): string; Overload;
+                        fldsReturn: String='' ): TJSONObject; Overload;
 var Context: String;
 begin
   Context:='';
@@ -1111,7 +1146,7 @@ Begin
        cSQL.Add('END;');
      end;
   end;
-  SResult:=GetData(cSQL).AsJSONObjectString();
+  SResult:=GetData(cSQL).ToString;
 End;
 
 function DatabaseExists(const nameDB: String): boolean;
@@ -1139,7 +1174,7 @@ begin
       '  FROM pg_catalog.pg_database'+
       ' WHERE {lcase(datname)} = {lcase('+QuotedStr(nameDB) +')};';
   end;
-  JSON:=GetData(SQry).AsJSONObject;
+  JSON:=GetData(SQry)[0] as TJSONObject;
   result:=false;
   if Assigned(JSON) then
      result:=GetInt(JSON,'db_exists')>0;
@@ -1166,7 +1201,9 @@ begin
   ProgDataPath := TPath.GetDocumentsPath+PathDelim;
 {$ENDIF}
   if LocalPath then
-     ProgDataPath:=ExtractFilePath(paramstr(0));
+     begin
+       ProgDataPath:=ExtractFilePath(paramstr(0));
+     end;
   writeln(ProgDataPath);
   if Not DirectoryExists(ProgDataPath) then
      begin
@@ -1246,10 +1283,10 @@ begin
   ADriverVendor.AddPair('VendorLib', GetStr(AJSON, 'vendorLib'));
   ADriverVendor.AddPair('VendorHome', GetStr(AJSON, 'vendorHome'));
   // -----------------------------------------------
-  AJSON := GetStr(JSON,'cust_data');
+  AJSON := GetStr(JSON,'license');
   ACustDatabase.Clear;
-  ACustDatabase.AddPair('name', GetStr(AJSON, 'name'));
-  ACustDatabase.AddPair('role', GetStr(AJSON, 'role'));
+  ACustDatabase.AddPair('branch', GetStr(AJSON, 'branch'));
+  ACustDatabase.AddPair('serial', GetStr(AJSON, 'serial'));
 end;
 
 procedure SetDataBaseParams(Const Context: String);

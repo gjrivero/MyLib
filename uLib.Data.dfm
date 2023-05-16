@@ -11,17 +11,6 @@ object FDM: TFDM
     Left = 48
     Top = 24
   end
-  object Qry: TFDQuery
-    Connection = Cnx
-    Left = 96
-    Top = 24
-  end
-  object Cmd: TFDCommand
-    Connection = Cnx
-    ResourceOptions.AssignedValues = [rvServerOutput]
-    Left = 144
-    Top = 24
-  end
   object WaitCursor: TFDGUIxWaitCursor
     Provider = 'Console'
     Left = 232
@@ -40,5 +29,15 @@ object FDM: TFDM
     DriverLink = SQLiteDriver
     Left = 120
     Top = 184
+  end
+  object Qry: TFDQuery
+    Connection = Cnx
+    Left = 104
+    Top = 24
+  end
+  object Cmd: TFDCommand
+    Connection = Cnx
+    Left = 160
+    Top = 24
   end
 end

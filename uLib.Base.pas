@@ -177,6 +177,7 @@ procedure DecompressFile(const filename: String);
 function CreateTJSONValue(sJSON: String): TJSONValue;
 function CreateTJSONObject(sJSON: String): TJSONObject;
 function CreateTJSONArray(sJSON: String): TJSONArray;
+function JSONArrayToObject(aJSON: TJSONArray; Index: Integer=0): TJSONObject;
 
 procedure GetFieldsValues( JSON: TJSONObject;
                            var sFields, sValues, sSetVal: string); overload;
@@ -354,6 +355,13 @@ Begin
   Result:= TJSONObject.ParseJSONValue(TEncoding.UTF8.GetBytes(sJSON), 0) as TJSONArray;
 End;
 
+function JSONArrayToObject(aJSON: TJSONArray; Index: Integer=0): TJSONObject;
+Begin
+  if AJSON<>Nil then
+     Result:=aJSON[Index] As TJSONObject
+  else
+     Result:=TJSONObject.Create;
+End;
 
 procedure GetFieldsValues( JSON: TJSONObject;
                            var sFields, sValues, sSetVal: string);
