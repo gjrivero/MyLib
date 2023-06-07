@@ -13,8 +13,8 @@ function callGet( const sTblName: String;
                         sCondition: String='';
                         sOrder: string=''): TJSONArray;
 function callGetOne( const sTblName: String;
-                        sfields: String='*';
-                        sCondition: String=''): TJSONObject;
+                        sfields: String;
+                        sCondition: String): TJSONObject;
 
 function callAdd( const DBTableName, Context: String): TJSONObject;
 function callUpd( const DBTableName, Context, sCondition: String): TJSONObject;
@@ -126,8 +126,8 @@ begin
 end;
 
 function callGetOne( const sTblName: String;
-                           sfields: String='*';
-                           sCondition: String=''): TJSONObject;
+                           sfields: String;
+                           sCondition: String): TJSONObject;
 begin
   result:=JSONArrayToObject(CallGet(sTblName,sfields,sCondition));
 end;

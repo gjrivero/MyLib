@@ -67,8 +67,6 @@ type
     function GetRecords(Const sQuery: String;
                               pParams: TFDParams=nil): TJSONArray;
 
-    function executeScripts( sQuery: TStrings;
-                             pParams: TFDParams=nil): Integer;
     function executeCmd( Const sQuery: String;
                          pParams: TFDParams=nil): Integer;
 
@@ -123,6 +121,9 @@ function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
                   const fldValues: Array of const): TJSONArray; Overload;
 
+function AddData( const dbTableName: String;
+                        Context: TJSONValue;
+                        fldsReturn: String='' ): TJSONObject; Overload;
 function AddData( const dbTableName,
                         Context: String;
                         fldsReturn: String='' ): TJSONObject; Overload;
@@ -131,7 +132,12 @@ function AddData( const dbTableName: string;
                   const fldValues: Array of const;
                         fldsReturn: String='' ): TJSONObject; Overload;
 
-function UpdData( const dbTableName, Context, Condition: String): Integer; Overload;
+function UpdData( const dbTableName: String;
+                        Context: TJSONValue;
+                        Condition: String): Integer; Overload;
+function UpdData( const dbTableName,
+                        Context,
+                        Condition: String): Integer; Overload;
 function UpdData( const dbTableName: String;
                   const fldNames: Array of String;
                   const fldValues: Array of const;
@@ -646,7 +652,6 @@ end;
 function TFDM.cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil): Integer;
 Var
    aHeader: TStringList;
-   a: Boolean;
 begin
   aHeader:=TStringList.Create;
   SetHeader(aHeader,True);
@@ -870,12 +875,6 @@ begin
   end;
 end;
 
-function TFDM.ExecuteScripts(sQuery: TStrings;
-                      pParams: TFDParams=nil): Integer;
-begin
-  result:=ExecuteCmd(sQuery.Text,pParams);
-end;
-
 function TFDM.GetRecords(Const sQuery: String; pParams: TFDParams=Nil): TJSONArray;
 Var aHeader: TStringList;
 begin
@@ -979,6 +978,16 @@ begin
   End;
 end;
 
+function AddData( Const dbTableName: string;
+                        Context: TJSONValue;
+                        fldsReturn: String='' ): TJSONObject; Overload;
+begin
+  try
+    Result:=FDM.cmdAdd(dbTableName,Context.ToString,fldsReturn);
+  finally
+  end;
+end;
+
 function AddData( Const dbTableName,
                         Context: String;
                         fldsReturn: String='' ): TJSONObject; Overload;
@@ -988,6 +997,7 @@ begin
   finally
   end;
 end;
+
 
 function AddData( Const dbTableName: string;
                   const fldNames:  Array of String;
@@ -1002,6 +1012,16 @@ begin
   finally
   end;
 end;
+
+function UpdData( const dbTableName: String;
+                        Context: TJSONValue;
+                        Condition: String): Integer; Overload;
+begin
+  try
+    Result:=FDM.cmdUpd(dbTableName,Context.ToString,Condition);
+  finally
+  end;
+End;
 
 function UpdData( const dbTableName, Context, Condition: String): Integer; Overload;
 begin
