@@ -47,7 +47,6 @@ Function  GoodReal(R: Double; defDec: Integer=2): Double; Overload;
 Function  GoodReal(S: String; defDec: Integer=2): Double; Overload;
 Function  DivCero(A,B: Double): Double;
 function  LeftS(S: String; Len: Integer; Ch: Char=' '): String;
-
 Function  GetFloat(OJSON: TJSONObject; const fieldname: String): Double; Overload;
 Function  GetFloat(FT: TDataSet; const FieldName: String): Double; OverLoad;
 Function  GetFloat(const St: String; Index: Integer; CDiv: Char=ChDiv): Double; OverLoad;
@@ -178,6 +177,11 @@ function CreateTJSONValue(sJSON: String): TJSONValue;
 function CreateTJSONObject(sJSON: String): TJSONObject;
 function CreateTJSONArray(sJSON: String): TJSONArray;
 function JSONArrayToObject(aJSON: TJSONArray; Index: Integer=0): TJSONObject;
+
+function SetJSONResponse( iStatus: Integer;
+                          const sMessage, aJSON: String): TJSONObject; overload;
+function SetJSONResponse( iStatus: Integer;
+                          const sMessage: string; aJSON: TJSONValue): TJSONObject; overload
 
 procedure GetFieldsValues( JSON: TJSONObject;
                            var sFields, sValues, sSetVal: string); overload;
@@ -328,6 +332,25 @@ begin
   if LCode<>0 then
      Val(AString, LVoidR, LCode);
   Result := LCode = 0;
+end;
+
+function SetJSONResponse( iStatus: Integer;
+                          const sMessage, aJSON: String): TJSONObject;
+var
+  tJSON: String;
+begin
+  tJSON:='';
+  SetInt(tJSON,'status',iStatus);
+  SetStr(tJSON,'message',sMessage);
+  SetJSON(tJSON,'response',aJSON);
+  result:=CreateTJSONObject(tJSON);
+end;
+
+function SetJSONResponse( iStatus: Integer;
+                          const sMessage: string;
+                          aJSON: TJSONValue): TJSONObject;
+begin
+  result:=SetJSONResponse( iStatus,sMessage, aJSON.ToString);
 end;
 
 //-------------------------------------------------//
