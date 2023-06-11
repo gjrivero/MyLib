@@ -55,6 +55,7 @@ Function  GetFloat(Item: IXMLNode; const AttribName: String): Double; Overload;
 Function  GetFloat(const sJSON, fieldname: String): Double; Overload;
 
 Function  GetInt(OJSON: TJSONObject; const fieldname: String): Integer; Overload;
+Function  GetInt(OJSON: TJSONObject; const fieldname: String; iDefault: Integer): Integer; Overload;
 Function  GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;
 Function  GetInt(const St: String; Index: Integer; CDiv: Char=ChDiv): Integer; Overload;
 Function  GetInt(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Integer; OverLoad;
@@ -1390,6 +1391,14 @@ begin
      else
         sValue:='0';
   Result:=StrToInteger(sValue);
+end;
+
+Function GetInt(OJSON: TJSONObject; const fieldname: String; iDefault: Integer): Integer; Overload;
+begin
+  if GetInt(OJSON,fieldname)=0 then
+     result:=iDefault
+  else
+     result:=GetInt(OJSON,fieldname);
 end;
 
 Function GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;

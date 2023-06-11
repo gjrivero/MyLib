@@ -77,29 +77,51 @@ begin
 end;
 
 function callUpd( Const DBTableName, Context, sCondition: String): TJSONObject;
-Var IOResult: Integer;
-    sWhere: String;
+Var sWhere: String;
+    aJSON: TJSONObject;
 begin
   sWhere:=getQueryCondition(sCondition);
-  IOResult:= UpdData(DBTableName, Context, sWhere);
-  Result:= TJSONObject.Create(TJSONPair.Create('result',TJSONNumber.Create(IOResult)));
+  aJSON:= UpdData(DBTableName, Context, sWhere);
+  if GetInt(aJSON,'error')=0 then
+     result:=SetJSONResponse( 0,
+                             'Successfully updated!',
+                              aJSON)
+  else
+     result:=SetJSONResponse( -1,
+                             GetStr(aJSON,'errormsg'),
+                              aJSON);
+
 end;
 
 function callAdd( Const DBTableName, Context: String): TJSONObject;
-Var sResult: String;
+Var aJSON: TJSONObject;
 begin
-  sResult:= AddData(DBTableName, Context).ToString;
-  Result:= TJSONObject.Create(TJSONPair.Create('result',CreateTJSONvalue(sResult)));
+  aJSON:= AddData(DBTableName, Context);
+  if GetInt(aJSON,'error')=0 then
+     result:=SetJSONResponse( 0,
+                             'Successfully updated!',
+                              aJSON)
+  else
+     result:=SetJSONResponse( -1,
+                             GetStr(aJSON,'errormsg'),
+                              aJSON);
 end;
 
 function callDel( Const DBTableName, sCondition: String): TJSONObject;
-Var IOResult: Integer;
-    sWhere: String;
+Var sWhere: String;
+    aJSON: TJSONObject;
 begin
   //sWhere:=getQueryCondition(sCondition);
   sWhere:= sCondition;
-  IOResult:= DelData(DBTableName,sWhere);
-  Result:= TJSONObject.Create(TJSONPair.Create('result',TJSONNumber.Create(IOResult)));
+  aJSON:= DelData(DBTableName,sWhere);
+  if GetInt(aJSON,'error')=0 then
+     result:=SetJSONResponse( 0,
+                             'Successfully deleted!',
+                              aJSON)
+  else
+     result:=SetJSONResponse( -1,
+                             GetStr(aJSON,'errormsg'),
+                              aJSON);
 end;
 
 

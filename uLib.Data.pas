@@ -48,28 +48,22 @@ type
 {$ENDIF}
     procedure SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
     function  ParamsToJSONObject(params: TFDParams): TJSONObject;
-
-    function cmdExecute( sCmd: TStringList;
-                         pParams: TFDParams=Nil): Integer;
-    function qryExecute( sCmd: TStringList;
-                         pParams: TFDParams=Nil;
-                         fldsReturn: String=''): TJSONObject;
-
     function cmdAdd(Const dbTableName,
                           Context: String;
                           fldsReturn: String=''): TJSONObject;
-
     function cmdUpd(Const dbTableName,
                           Context: String;
-                          Condition: String): Integer;
-    function cmdDel( Const dbTableName, sWhere: String): Integer;
+                          Condition: String): TJSONObject;
+    function cmdDel( Const dbTableName, sWhere: String): TJSONObject;
+    function cmdExecute(sCmd: string; pParams: TFDParams=Nil): Integer; overload;
+    function cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil): Integer; overload;
 
     function GetRecords(Const sQuery: String;
                               pParams: TFDParams=nil): TJSONArray;
 
-    function executeCmd( Const sQuery: String;
-                         pParams: TFDParams=nil): Integer;
-
+    function execTrans( cSQL, sDecl: TStringList;
+                        sFields: String;
+                        pParams: TFDParams): TJSONObject;
     function SQLiteSetPassword( Const sNewPass, sOldPass: String): Integer;
     function SQLiteSetCrypt(encrypt: Boolean; const sPassword: string): Integer;
     function SQLiteGetCrypt( const sPassword: String; var sCrypted: String): Integer;
@@ -134,16 +128,16 @@ function AddData( const dbTableName: string;
 
 function UpdData( const dbTableName: String;
                         Context: TJSONValue;
-                        Condition: String): Integer; Overload;
+                        Condition: String): TJSONObject; Overload;
 function UpdData( const dbTableName,
                         Context,
-                        Condition: String): Integer; Overload;
+                        Condition: String): TJSONObject; Overload;
 function UpdData( const dbTableName: String;
                   const fldNames: Array of String;
                   const fldValues: Array of const;
-                        Condition: String): Integer; Overload;
+                        Condition: String): TJSONObject; Overload;
 
-function DelData( const dbTableName, Condition: String): Integer; Overload;
+function DelData( const dbTableName, Condition: String): TJSONObject;
 
 function ExecCmd( const sCommands: String; pParams: TFDParams=Nil): Integer; Overload;
 function ExecCmd( sCommands: TStrings; pParams: TFDParams=Nil): Integer; Overload;
@@ -154,6 +148,11 @@ function ExecCmd( sCommands: TStrings;
                   const fldNames: Array of String;
                   const fldValues: Array of const): Integer; Overload;
 
+function ExecTransact( cSQL: TStringList;
+                       sDecl: TStringList=nil;
+                       sFields: String='';
+                       pParams: TFDParams=nil): TJSONObject; Overload;
+
 function SQLChangePass( const newPass, oldPass: String): Integer;
 function SQLSetCrypt( const crypt: boolean; const sPassword: string): Integer;
 function SQLGetCrypt( const sPassword: String; var sCryptState: String): Integer;
@@ -162,13 +161,11 @@ function fieldsString( const fields: array of String; alias: String=''  ): Strin
 function GetDriverID(CnxDriver: String): TFDRDBMSKind;
 function DatabaseExists( const nameDB: String): boolean;
 function GetApplicationPath(LocalPath: Boolean): String;
-function SqlBeginTran(sqlDeclare: TStringList=Nil): TStringList;
 function SetFDParams( const fldNames: Array Of String;
                       const fldValues: Array Of Variant): TFDParams; overload;
 function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
 
-procedure SqlCommitTran(cSQL: TStringList; Var SResult: String);
 procedure SetDataBaseParams( const Context: String);
 procedure LoadConnectSettings( const ProgDataPath: String; var ASettingsFileName: String);
 procedure SaveConnectSettings();
@@ -532,39 +529,51 @@ Var
   Session: TDSSession;
 {$ENDIF}
 begin
-  if Not HeaderEnabled then
-     exit;
 {$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
-  Session:= TDSSessionManager.GetThreadSession;
-  userId:= Session.GetData('loginID');
-  userName:= Trim(Session.GetData('FirstName')+' '+Session.GetData('LastName'));
-  if HeaderEnabled And forAudit then
+  if forAudit then
+     begin
+       Session:= TDSSessionManager.GetThreadSession;
+       userId:= Session.GetData('loginID');
+       userName:= Trim(Session.GetData('FirstName')+' '+Session.GetData('LastName'));
+       Case Cnx.RDBMSKind of
+        TFDRDBMSKinds.MYSQL:
+          begin
+            aHeader.Add('SET @user_id:='+userId+';');
+            aHeader.Add('SET @user_name:='+QuotedStr(username)+';');
+          end;
+        TFDRDBMSKinds.PostgreSQL:
+          begin
+            //aHeader.Add('SELECT set_config(''usession.id'','+userId+',FALSE);');
+            //aHeader.Add('SELECT set_config(''usession.name'','+QuotedStr(username)+',FALSE);');
+            aHeader.Add('SET usession.id='+userId+';');
+            aHeader.Add('SET usession.name='+QuotedStr(username)+';');
+          end;
+        TFDRDBMSKinds.SQLite: ;
+        TFDRDBMSKinds.MSSQL:
+          begin
+            aHeader.Add('EXEC sp_set_session_context N''user_id'', '+userId+', 0;');
+            aHeader.Add('EXEC sp_set_session_context N''user_name'', '+QuotedStr(username)+', 0;');
+          end;
+       end;
+     end;
+{$ENDIF}
+  if HeaderEnabled or ForAudit then
      Case Cnx.RDBMSKind of
       TFDRDBMSKinds.MYSQL:
         begin
-          aHeader.Add('SET @user_id:='+userId+';');
-          aHeader.Add('SET @user_name:='+QuotedStr(username)+';');
         end;
       TFDRDBMSKinds.PostgreSQL:
         begin
-          //aHeader.Add('SELECT set_config(''usession.id'','+userId+',FALSE);');
-          //aHeader.Add('SELECT set_config(''usession.name'','+QuotedStr(username)+',FALSE);');
-          aHeader.Add('SET usession.id='+userId+';');
-          aHeader.Add('SET usession.name='+QuotedStr(username)+';');
-
-          //aHeader.Add('DO $block_task$begin');
         end;
       TFDRDBMSKinds.SQLite: ;
       TFDRDBMSKinds.MSSQL:
         begin
-          aHeader.Add('EXEC sp_set_session_context N''user_id'', '+userId+', 0;');
-          aHeader.Add('EXEC sp_set_session_context N''user_name'', '+QuotedStr(username)+', 0;');
           aHeader.Add('SET DATEFORMAT YMD;');
+          aHeader.Add('SET NOCOUNT ON;');
            {result.Add('SET DATEFIRST 7;'); //, -- 1 = Monday, 7 = Sunday
            result.Add('SET LANGUAGE US_ENGLISH;');}
         end;
      end;
-{$ENDIF}
 end;
 
 function valuesString( const values: array of const): String;
@@ -654,7 +663,8 @@ Var
    aHeader: TStringList;
 begin
   aHeader:=TStringList.Create;
-  SetHeader(aHeader,True);
+
+  SetHeader(aHeader);
   aHeader.Add(sCmd.Text);
   Cmd.CommandText.Clear;
   Cmd.CommandText.Assign(aHeader);
@@ -687,30 +697,112 @@ begin
   aHeader.Destroy;
 end;
 
-function TFDM.QryExecute(sCmd: TStringList; pParams: TFDParams=Nil; fldsReturn: String=''): TJSONObject;
-Var aHeader: TStringList;
+function TFDM.cmdExecute(sCmd: String; pParams: TFDParams=Nil): Integer;
+var
+  TS: TStringList;
 begin
-  aHeader:=TStringList.Create;
-  SetHeader(aHeader,True);
-  Qry.SQL.Clear;
-  Qry.SQL.Assign(aHeader);
-  Qry.SQL.Add(sCmd.Text);
-  if HeaderEnabled then
-     case Cnx.RDBMSKind Of
-      TFDRDBMSKinds.MSSQL:;
-      TFDRDBMSKinds.MYSQL: ;
-      TFDRDBMSKinds.SQLite: ;
-      TFDRDBMSKinds.PostgreSQL:
-        begin
-          //Qry.SQL.Add('end$block_task$;');
-        end;
+  TS:=TStringList.Create;
+  TS.Text:=sCmd;
+  cmdExecute(TS,pParams);
+  TS.Destroy;
+end;
+
+function TFDM.execTrans( cSQL, sDecl: TStringList;
+                         sFields: String;
+                         pParams: TFDParams): TJSONObject;
+var
+   cCmd: TStringList;
+begin
+  cCmd:=TStringList.Create;
+  SetHeader(cCmd,true);
+  case RDBMSKind of
+   TFDRDBMSKinds.MSSQL:
+     begin
+       cCmd.Add('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;');
+       cCmd.Add('DECLARE ');
+       if sDecl<>Nil then
+          cCmd.Add(sDecl.Text);
+       cCmd.Add('  @ERROR INT=0;');
+       cCmd.Add('BEGIN TRANSACTION;');
+       cCmd.Add('BEGIN TRY');
      end;
+   TFDRDBMSKinds.MySQL:
+     begin
+       cCmd.Add('SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;');
+       cCmd.Add('DECLARE @Error INT DEFAULT 0;');
+       if sDecl<>Nil then
+          cCmd.Add(sDecl.Text);
+       cCmd.Add('START TRANSACTION;');
+     end;
+   TFDRDBMSKinds.PostgreSQL:
+     begin
+       cCmd.Add('DECLARE');
+       if sDecl<>Nil then
+          cCmd.Add(sDecl.Text);
+       cCmd.Add('  _error INTEGER DEFAULT 0;');
+       cCmd.Add('BEGIN');
+       cCmd.Add('  BEGIN;');
+     end;
+   TFDRDBMSKinds.SQLite: ;
+  end;
+  //--------------------------------
+  cCmd.Add(cSQL.Text);
+  //--------------------------------
+  case RDBMSKind of
+   TFDRDBMSKinds.MSSQL:
+     begin
+       cCmd.Add('  IF @ERROR>0');
+       cCmd.Add('  BEGIN');
+       cCmd.Add('    SELECT @ERROR error;');
+       cCmd.Add('    RAISERROR(''ERROR IN TRASACTION SQL'', @ERROR,1);');
+       cCmd.Add('  END;');
+       cCmd.Add('  COMMIT TRANSACTION;');
+       cCmd.Add('  SELECT @ERROR error'+ifThen(sFields<>'',', '+sFields,'')+';');
+       cCmd.Add('END TRY');
+       cCmd.Add('BEGIN CATCH');
+       cCmd.Add('  IF (@@TRANCOUNT>0) or (@ERROR<>0) ');
+       cCmd.Add('     ROLLBACK;');
+       cCmd.Add('  DECLARE @ErrMsg nvarchar(4000), @ErrSeverity int;');
+       cCmd.Add('  SELECT @ErrMsg = ERROR_MESSAGE(),');
+       cCmd.Add('         @ErrSeverity = ERROR_SEVERITY()');
+       cCmd.Add('  SELECT -1 error, @ErrMsg errmsg, @errseverity errseverity;');
+       cCmd.Add('  RAISERROR(@ErrMsg, @ErrSeverity, 1);');
+       cCmd.Add('END CATCH;');
+     end;
+   TFDRDBMSKinds.MySQL:
+     begin
+       cCmd.Add('SELECT @Error := @@error;');
+       cCmd.Add('IF (@Error <> 0) THEN');
+       cCmd.Add('  ROLLBACK;');
+       cCmd.Add('  SELECT concat(''Transaction failed with error: '', @Error);');
+       cCmd.Add('ELSE');
+       cCmd.Add('  COMMIT;');
+       cCmd.Add('END IF;');
+       cCmd.Add('SELECT @Error error'+ifThen(sFields<>'',', '+sFields,'')+';');
+     end;
+   TFDRDBMSKinds.PostgreSQL:
+     begin
+       cCmd.Add('  GET STACKED DIAGNOSTICS _error = RETURNED_SQLSTATE;');
+       cCmd.Add('  IF _error <> ''00000'' THEN');
+       cCmd.Add('    ROLLBACK;');
+       cCmd.Add('    RAISE NOTICE ''Transaction rolled back due to error: %'', _error;');
+       cCmd.Add('  ELSE');
+       cCmd.Add('    COMMIT;');
+       cCmd.Add('  END IF;');
+       cCmd.Add('  SELECT _error error'+ifThen(sFields<>'',', '+sFields,'')+';');
+       cCmd.Add('END;');
+     end;
+  end;
+
+  Qry.SQL.Clear;
+  Qry.SQL.Assign(cCmd);
+  if pParams<>Nil then
+     Qry.Params:=pParams;
+  Qry.Prepare;
   if Not autoCommit then
      Cnx.StartTransaction;
   Try
-    //Qry.SQL.SaveToFile('commit.txt');
     Qry.OpenOrExecute;
-    //Qry.GetResults;
     Result:=Qry.AsJSONObject;
     if Not autoCommit then
        Cnx.Commit;
@@ -722,8 +814,9 @@ begin
            raise Exception.Create(E.Message);
          end;
   End;
-  aHeader.Destroy;
-end;
+  cCmd.Destroy;
+End;
+
 
 function TFDM.cmdAdd( const dbTableName,
                             Context: String;
@@ -773,33 +866,16 @@ Var
 begin
   sCmd:=TStringList.create;
   try
-    if Context.StartsWith('[') then
-       begin
-         AJSON:=CreateTJSONArray(Context);
-         if AJSON<>Nil then
-            Try
-              for var I:= 0 to AJSON.Count-1 do
-               Begin
-                 GetFieldsvalues(AJSON.Items[I] As TJSONObject,sFields,sValues,sSetVal);
-                 InsTable(sCmd,dbTableName,sFields,sValues);
-               End;
-            Finally
-              AJSON.Destroy;
-            End;
-       End
-    else
-       begin
-         GetFieldsvalues(Context,sFields,sValues,sSetVal);
-         InsTable(sCmd,dbTableName,sFields,sValues);
-       end;
-    result:=qryExecute(sCmd,Nil,fldsReturn);
+    GetFieldsvalues(Context,sFields,sValues,sSetVal);
+    InsTable(sCmd,dbTableName,sFields,sValues);
+    result:=execTrans(sCmd,Nil,fldsReturn,nil);
   finally
     sCmd.Destroy;
   end;
 End;
 
 function TFDM.cmdUpd(Const dbTableName, Context: String;
-                           Condition: String): Integer;
+                           Condition: String): TJSONObject;
 
   procedure UpdTable( iSQL: TStringList;
                       const DBTABLE: String;
@@ -820,56 +896,23 @@ Var
 begin
   sCmd:=TStringList.create;
   try
-    if Context.StartsWith('[') then
-       begin
-         AJSON:=CreateTJSONArray(Context);
-         if AJSON<>Nil then
-            Try
-              for var I:= 0 to AJSON.Count-1 do
-               Begin
-                 GetFieldsvalues(AJSON.Items[I] As TJSONObject,sFields,sValues,sSetVal);
-                 updTable(sCmd,dbTableName,sSetVal,condition);
-               End;
-            Finally
-              AJSON.Destroy;
-            End;
-       End
-    else
-       begin
-         GetFieldsvalues(Context,sFields,sValues,sSetVal);
-         updTable(sCmd,dbTableName,sSetVal,condition);
-       end;
-    result:=cmdExecute(sCmd);
+    GetFieldsvalues(Context,sFields,sValues,sSetVal);
+    updTable(sCmd,dbTableName,sSetVal,condition);
+    result:=execTrans(sCmd,Nil,'',Nil);
   finally
     sCmd.Destroy;
   end;
 End;
 
-function TFDM.cmdDel(Const dbTableName, sWhere: String): Integer;
+function TFDM.cmdDel(Const dbTableName, sWhere: String): TJSONObject;
 Var
    sCmd: TStringList;
 begin
-  if sWhere='' then
-     Exit(DB_BAD_URL_PARAMS);
   sCmd:=TStringList.create;
   try
     sCmd.Add('DELETE FROM '+dbTableName);
     sCmd.Add(' WHERE '+sWhere+';');
-    result:=cmdExecute(sCmd);
-  finally
-    sCmd.Destroy;
-  end;
-end;
-
-function TFDM.ExecuteCmd( Const sQuery: String;
-                                pParams: TFDParams=nil): Integer;
-var
-    sCmd: TStringList;
-begin
-  sCmd:=TStringList.create;
-  try
-    sCmd.Add(sQuery);
-    result:=cmdExecute(sCmd,pParams);
+    result:=execTrans(sCmd,Nil,'',Nil);
   finally
     sCmd.Destroy;
   end;
@@ -897,6 +940,7 @@ begin
   aHeader.Destroy;
   Result:=Qry.AsJSONArray();
 end;
+
 
 procedure TFDM.CnxBeforeConnect(Sender: TObject);
 begin
@@ -1015,7 +1059,7 @@ end;
 
 function UpdData( const dbTableName: String;
                         Context: TJSONValue;
-                        Condition: String): Integer; Overload;
+                        Condition: String): TJSONObject; Overload;
 begin
   try
     Result:=FDM.cmdUpd(dbTableName,Context.ToString,Condition);
@@ -1023,7 +1067,7 @@ begin
   end;
 End;
 
-function UpdData( const dbTableName, Context, Condition: String): Integer; Overload;
+function UpdData( const dbTableName, Context, Condition: String): TJSONObject; Overload;
 begin
   try
     Result:=FDM.cmdUpd(dbTableName,Context,Condition);
@@ -1034,7 +1078,7 @@ End;
 function UpdData( const dbTableName: String;
                   const fldNames:  Array of String;
                   const fldValues: Array of const;
-                        Condition: String): Integer; Overload;
+                        Condition: String): TJSONObject; Overload;
 var Context: string;
 begin
   Context:='{}';
@@ -1045,7 +1089,7 @@ begin
   end;
 end;
 
-function DelData( Const dbTableName, condition: String): Integer;
+function DelData( Const dbTableName, condition: String): TJSONObject;
 begin
   try
     Result:= FDM.cmdDel(dbTableName,condition);
@@ -1053,12 +1097,20 @@ begin
   end;
 end;
 
+function ExecTransact( cSQL: TStringList;
+                       sDecl: TStringList=nil;
+                       sFields: String='';
+                       pParams: TFDParams=nil): TJSONObject; Overload;
+begin
+  result:= FDM.execTrans(cSQL, sDecl, sFields, pParams);
+end;
+
 function ExecCmd( const sCommands: String; pParams: TFDParams=Nil): Integer; Overload;
 begin
   if sCommands='' then
      Exit(0);
   try
-    Result:=FDM.executeCmd(sCommands,pParams);
+    Result:=FDM.cmdExecute(sCommands,pParams);
   finally
   end;
 end;
@@ -1077,7 +1129,7 @@ begin
      Exit(0);
   pParams:=setFDParams(fldNames,fldValues);
   Try
-    Result:=FDM.executeCmd(sCommands,pParams);
+    Result:=FDM.cmdExecute(sCommands,pParams);
   finally
     pParams.Destroy;
   end;
@@ -1090,84 +1142,6 @@ begin
   result:= ExecCmd( sCommands.Text,fldNames,fldValues);
 end;
 
-function SqlBeginTran(sqlDeclare: TStringList=Nil): TStringList;
-Begin
-  result := TStringList.Create;
-  case RDBMSKind of
-   TFDRDBMSKinds.MSSQL:
-     begin
-       result.Add('DECLARE ');
-       result.Add('  @NUMERRORS INT=0;');
-       result.Add('BEGIN TRANSACTION;');
-       result.Add('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;');
-       if sqlDeclare<>Nil then
-          result.Add(SqlDeclare.Text);
-       result.Add('BEGIN TRY');
-     end;
-   TFDRDBMSKinds.MySQL:
-     begin
-       result.Add('DECLARE @Error INT DEFAULT 0;');
-       result.Add('START TRANSACTION;');
-       result.Add('SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;');
-     end;
-   TFDRDBMSKinds.PostgreSQL:
-     begin
-       result.Add('DECLARE');
-       result.Add('  _error INTEGER DEFAULT 0;');
-       result.Add('BEGIN');
-       result.Add('  BEGIN;');
-     end;
-   TFDRDBMSKinds.SQLite: ;
-  end;
-End;
-
-Procedure SqlCommitTran(cSQL: TStringList; Var SResult: String);
-Begin
-  case RDBMSKind of
-   TFDRDBMSKinds.MSSQL:
-     begin
-       cSQL.Add('  IF @NUMERRORS>0');
-       cSQL.Add('  BEGIN');
-       cSQL.Add('    RAISERROR(''ERROR IN TRASACTION SQL'', 16,1);');
-       cSQL.Add('  END;');
-       cSQL.Add('  COMMIT TRANSACTION;');
-       cSQL.Add('END TRY');
-       cSQL.Add('BEGIN CATCH');
-       cSQL.Add('  IF (@@TRANCOUNT>0) or (@NUMERRORS<>0) ');
-       cSQL.Add('     ROLLBACK;');
-       cSQL.Add('  DECLARE @ErrMsg nvarchar(4000), @ErrSeverity int;');
-       cSQL.Add('  SELECT @ErrMsg = ERROR_MESSAGE(),');
-       cSQL.Add('         @ErrSeverity = ERROR_SEVERITY()');
-       cSQL.Add('  RAISERROR(@ErrMsg, @ErrSeverity, 1);');
-       cSQL.Add('END CATCH;');
-       cSQL.Add('SELECT @NUMERRORS ERROR'+ ifThen(SResult<>'',', ','')+SResult);
-     end;
-   TFDRDBMSKinds.MySQL:
-     begin
-       cSQL.Add('SELECT @NUMERRORS := @@error;');
-       cSQL.Add('IF (@Error <> 0) THEN');
-       cSQL.Add('  ROLLBACK;');
-       cSQL.Add('  SELECT concat(''Transaction failed with error: '', @Error);');
-       cSQL.Add('ELSE');
-       cSQL.Add('  COMMIT;');
-       cSQL.Add('END IF;');
-       cSQL.Add('SELECT @NUMERRORS ERROR'+ ifThen(SResult<>'',', ','')+SResult);
-     end;
-   TFDRDBMSKinds.PostgreSQL:
-     begin
-       cSQL.Add('  GET STACKED DIAGNOSTICS _error = RETURNED_SQLSTATE;');
-       cSQL.Add('  IF _error <> ''00000'' THEN');
-       cSQL.Add('    ROLLBACK;');
-       cSQL.Add('    RAISE NOTICE ''Transaction rolled back due to error: %'', _error;');
-       cSQL.Add('  ELSE');
-       cSQL.Add('    COMMIT;');
-       cSQL.Add('  END IF;');
-       cSQL.Add('  SELECT @NUMERRORS ERROR'+ ifThen(SResult<>'',', ','')+SResult);
-       cSQL.Add('END;');
-     end;
-  end;
-  SResult:=GetData(cSQL).ToString;
-End;
 
 function DatabaseExists(const nameDB: String): boolean;
 Var
