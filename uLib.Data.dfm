@@ -4,8 +4,6 @@ object FDM: TFDM
   Height = 303
   Width = 386
   object Cnx: TFDConnection
-    Params.Strings = (
-      'DriverID=SQLite')
     LoginPrompt = False
     BeforeConnect = CnxBeforeConnect
     Left = 48

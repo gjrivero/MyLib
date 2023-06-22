@@ -30,6 +30,7 @@ Type
         countFl,
         countFK,
         countIX: Integer;
+        sAFields: String;
         afldNames: TStringList;
         lSQL,
         iSQL: TStringList;
@@ -86,6 +87,7 @@ Type
         auditTable: Boolean;
         procedure auditProcTable;
         procedure lastDateProcTable;
+
       protected
         fSQL,
         tSQL,
@@ -116,12 +118,7 @@ Type
     end;
 
 
-procedure AddFldTable( const aTable, aFieldName: String;
-                       const fieldType: TFieldType;
-                       const len: Integer=0;
-                       const attributes: TSetFieldAttributes=[];
-                       const aDefault: String='' );
-procedure processSQL(sqlCmd: TStringList);
+procedure processSQL(sqlCmd: TStringList; aSave: boolean=false);
 
 implementation
 
@@ -133,25 +130,11 @@ Uses
 Const
     PR_AUDIT_TRACE = 'sp_audit_trace';
     PR_LAST_UPDATE = 'sp_last_update';
+    PR_NEXT_VALUE = 'sp_next_value';
     PR_ENTP_SEQUENCE ='sp_entp_sequence';
 
 
-procedure AddFldTable( const aTable, aFieldName: String;
-                       const fieldType: TFieldType;
-                       const len: Integer=0;
-                       const attributes: TSetFieldAttributes=[];
-                       const aDefault: String='' );
-Var tbl: TTableBase;
-begin
-  tbl:=TTableBase.create('','','','');
-  tbl.initTable(aTable,[tbDict]);
-  tbl.AddFld(aFieldName,fieldType,len,attributes,aDefault);
-  //tbl.makeTable;
-  tbl.executeSQL;
-  tbl.Destroy;
-end;
-
-procedure processSQL(sqlCmd: TStringList);
+procedure processSQL(sqlCmd: TStringList; aSave: boolean=false);
 Var
    i: Integer;
    sCmd: TStringList;
@@ -159,7 +142,7 @@ begin
   sCmd:=TStringList.Create;
   for I:=0 to sqlCmd.Count-1  do
    begin
-     if (Trim(sqlCmd[I]).ToUpper='--GO') then
+     if (sqlCmd[I].StartsWith('--GO')) then
         begin
           case RDBMSKind of
            TFDRDBMSKinds.PostgreSQL:
@@ -168,7 +151,10 @@ begin
                sCmd.Add('end$task$;');
              end;
           end;
+          if aSave then
+             sCmd.SaveToFile('qry'+FormatDateTime('mmddhhnnss',Now)+'.txt');
           ExecCmd(sCmd.Text);
+          //ExecTransact(sCmd);
           sCmd.Clear;
         end
      else
@@ -183,7 +169,10 @@ begin
             sCmd.Add('end$task$;');
           end;
        end;
+       if aSave then
+          sCmd.SaveToFile('qry'+FormatDateTime('mmddhhnnss',Now)+'.txt');
        ExecCmd(sCmd.Text);
+       //ExecTransact(sCmd);
      end;
   sCmd.Destroy;
 end;
@@ -218,6 +207,7 @@ begin
   ch:='  ';
   ln:=20;
   fieldName:=fieldName.ToLower;
+  sAFields:=sAFields+','+fieldName;
   afldNames.AddPair(lTableName,fieldName+chDiv+Ord(fieldType).ToString);
   if atAlter In attributes then
      begin
@@ -334,9 +324,11 @@ begin
        if (fieldType In [ftAutoInc]) and isSequence then
           Case RDBMSKind Of
             TFDRDBMSKinds.PostgreSQL:
-              St:=St+' DEFAULT NEXTVAL('+QuotedStr(aSchema+'seq_'+lTableName)+')';
+              St:=St+#13+LeftS(' ',27)+
+                  'DEFAULT NEXTVAL('+QuotedStr(aSchema+'seq_'+lTableName)+')';
             TFDRDBMSKinds.MSSQL:
-              St:=St+' DEFAULT (NEXT VALUE FOR '+aSchema+'seq_'+lTableName+')';
+              St:=St+#13+LeftS(' ',27)+
+                  'DEFAULT (NEXT VALUE FOR '+aSchema+'seq_'+lTableName+')';
             TFDRDBMSKinds.SQLite: ;
             TFDRDBMSKinds.MySQL: ;
           End;
@@ -360,29 +352,38 @@ begin
             case fieldType of
              ftInteger:
                   if Not aDefault.IsEmpty then
-                     st:=St+' DEFAULT '+aDefault
+                     st:=St+#13+LeftS(' ',27)+
+                            'DEFAULT '+aDefault
                   else
-                     st:=St+' DEFAULT 0';
+                     st:=St+#13+LeftS(' ',27)+
+                            'DEFAULT 0';
              ftFloat,
              ftBoolean,
              ftCurrency,
              ftSmallInt:  if Not aDefault.IsEmpty then
-                             st:=St+' DEFAULT '+aDefault
+                             st:=St+#13+LeftS(' ',27)+
+                                 'DEFAULT '+aDefault
                           else
-                             st:=St+' DEFAULT 0';
+                             st:=St+#13+LeftS(' ',27)+
+                                 'DEFAULT 0';
              ftDate:      If (atNotNull In attributes) Then
-                             st:=St+' DEFAULT CURRENT_DATE';
+                             st:=St+#13+LeftS(' ',27)+
+                                 'DEFAULT CURRENT_DATE';
              ftDateTime:  If (atNotNull In attributes) Then
-                             st:=St+' DEFAULT CURRENT_TIMESTAMP';
+                             st:=St+#13+LeftS(' ',27)+
+                                 'DEFAULT CURRENT_TIMESTAMP';
              ftTimeStamp: Case RDBMSKind Of
                             TFDRDBMSKinds.SQLite:
-                              St:=St+ ' DEFAULT (DATETIME(CURRENT_TIMESTAMP, ''localtime''))';
+                              St:=St+#13+LeftS(' ',27)+
+                                 'DEFAULT (DATETIME(CURRENT_TIMESTAMP, ''localtime''))';
                             else
-                              St:=St+ ' DEFAULT CURRENT_TIMESTAMP';
+                              St:=St+#13+LeftS(' ',27)+
+                                'DEFAULT CURRENT_TIMESTAMP';
                           End;
             else
                         if Not aDefault.IsEmpty then
-                           st:=St+' DEFAULT '+aDefault;
+                           st:=St+#13+LeftS(' ',27)+
+                              'DEFAULT '+aDefault;
             end;
           end;
      end;
@@ -466,6 +467,7 @@ end;
 
 procedure TTableBase.clear;
 begin
+  sAFields:='';
   iSQL.Clear;
   lSQL.Clear;
   countFl:=0;
@@ -518,8 +520,19 @@ begin
   lSchema:=ASchema;
   if rbOnly then
      lSchema:=MSchema;
+  if Not (onlyDict And alterTbl) and isSequence  then
+     begin
+       lSQL.add('DROP SEQUENCE IF EXISTS '+aSchema+'seq_'+lTableName+';');
+       lSQL.add('--GO');
+       lSQL.add('CREATE SEQUENCE '+aSchema+'seq_'+lTableName+'');
+       lSQL.add('          START WITH 1 INCREMENT BY 1;');
+       lSQL.add('--GO');
+     end;
   if Not (onlyDict And alterTbl) then
      begin
+       lSQL.add('DROP TABLE IF EXISTS '+aSchema+lTableName+';');
+       lSQL.add('--GO');
+
        lSQL.add('CREATE TABLE '+aSchema+lTableName+' (');
      end;
   if dictionary then
@@ -537,18 +550,14 @@ begin
   if onlyDict or rbOnly then
      exit;
   lSQL.Add(');');
-  if isSequence  then
-     begin
-       lSQL.Insert(0,
-         'CREATE SEQUENCE '+aSchema+'seq_'+lTableName+#13+
-         '       START WITH 1 INCREMENT BY 1;'#13+
-         '--GO');
-     end;
-  sText:=lSQL.Text;
-  addCmd(sText);
+  gSQL.AddStrings(lSQL);
   sText:=iSQL.Text;
   if Not sText.IsEmpty then
-     addCmd(sText);
+     Begin
+       addCmd('--GO');
+       gSQL.AddStrings(iSQL);
+       addCmd('--GO');
+     End;
 end;
 
 { TTableDefinition }
@@ -830,6 +839,8 @@ begin
        tSQL.Add('   SET updatedat=GETDATE()');
        tSQL.Add('  FROM inserted');
        tSQL.Add(' WHERE '+ASchema+lTableName+'.id=inserted.Id;');
+       tSQL.Add('DROP TRIGGER IF EXISTS '+aDateUpd+';');
+       tSQL.Add('--GO');
      End;
    TFDRDBMSKinds.PostgreSQL:
      Begin
@@ -879,6 +890,23 @@ begin
         fSQL.Add('RETURNS TRIGGER AS $$');
         fSQL.Add('BEGIN');
         fSQL.Add('  NEW.updatedat = CURRENT_TIMESTAMP;');
+        fSQL.Add('  RETURN NEW;');
+        fSQL.Add('END;');
+        fSQL.Add('$$ LANGUAGE plpgsql;');
+        fSQL.Add('--GO');
+
+        (*
+        fSQL.Add('CREATE OR REPLACE FUNCTION '+PR_NEXT_SEQUENCE+'()');
+        fSQL.Add('RETURNS TRIGGER AS $$');
+        fSQL.Add('DECLARE');
+        fSQL.Add('  new_id int=0;');
+        fSQL.Add('BEGIN');
+        fSQL.Add('  ');
+        fSQL.Add('  UPDATE '+ASchema+lTableName);
+        fSQL.Add('     SET new_id=value, value=value+1');
+        fSQL.Add('   WHERE (table_name='+QuotedStr(ASchema+lTableName)+');');
+        *)
+        fSQL.Add('  NEW.id = new_id;');
         fSQL.Add('  RETURN NEW;');
         fSQL.Add('END;');
         fSQL.Add('$$ LANGUAGE plpgsql;');
@@ -976,7 +1004,6 @@ begin
   if onlyDict or rbOnly then
      exit;
   sSql:=lSQL.Text;
-
   if auditTable then
      auditProcTable;
   if sSql.Contains('updatedat') then
@@ -998,7 +1025,8 @@ begin
          TFDRDBMSKinds.MSSQL,
          TFDRDBMSKinds.PostgreSQL:
            begin
-             sCmd:=sCmd+ #13'DROP SEQUENCE IF EXISTS '+aSchema+'seq_'+fTable+';';
+             ;
+             //sCmd:=sCmd+ #13'DROP SEQUENCE IF EXISTS '+aSchema+'seq_'+fTable+';';
            end;
          TFDRDBMSKinds.MySQL:
            ;

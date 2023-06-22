@@ -80,6 +80,12 @@ Function  GetDate(Item: IXMLNode; const AttribName: String): TDateTime; Overload
 Function  GetDate(Item: IXMLNode): TDateTime; Overload;
 Function  GetDate(const sJSON, fieldname: String): TDateTime; Overload;
 
+function GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
+function GetBool(const sJSON: String; const FieldName: string): boolean; Overload;
+
+Procedure SetBool(OJSON: TJSONObject; const FieldName: string; Value: boolean); Overload;
+Procedure SetBool(var sJSON: String; const FieldName: string; Value: boolean); Overload;
+
 Procedure SetStr(FT: TDataSet; const FieldName, Value: String); Overload;
 Procedure SetStr(OJSON: TJSONObject; const FieldName, Value: String); Overload;
 Procedure SetStr(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
@@ -87,7 +93,7 @@ Procedure SetStr(LB: TStrings; Index, N: Integer; const St: String; CDiv: Char=C
 Procedure SetStr(var sJSON: String; const FieldName, Value: String); Overload;
 Procedure SetStr(var sJSON: String; const FieldName: String; Value: TJSONValue); Overload;
 
-Procedure JSONRemove(var sJSON: String; const FieldName: String);
+Procedure StrRemove(var sJSON: String; const FieldName: String);
 Procedure SetJSON(JSON: TJSONObject; const FieldName: String; Value: TJSONValue); Overload;
 Procedure SetJSON(JSON: TJSONObject; const FieldName, Value: String); Overload;
 Procedure SetJSON(var sJSON: String; const FieldName, Value: String); Overload;
@@ -381,7 +387,7 @@ End;
 
 function JSONArrayToObject(aJSON: TJSONArray; Index: Integer=0): TJSONObject;
 Begin
-  if AJSON<>Nil then
+  if Assigned(AJSON) And (AJSON.Count>0) then
      Result:=aJSON[Index] As TJSONObject
   else
      Result:=TJSONObject.Create;
@@ -1220,6 +1226,24 @@ Begin
   End;
 End;
 
+Procedure SetBool(OJSON: TJSONObject; const FieldName: string; Value: boolean); Overload;
+begin
+  OJSON.RemovePair(fieldName);
+  OJSON.AddPair(fieldName,TJSONBool.Create(Value));
+end;
+
+Procedure SetBool(var sJSON: String; const FieldName: string; Value: boolean); Overload;
+var JSON: TJSONObject;
+begin
+  JSON:=CreateTJSONObject(sJSON);
+  if JSON<>Nil then
+     begin
+       Setbool(JSON,fieldName,Value);
+       sJSON:=JSON.ToString;
+       FreeAndNil(JSON);
+     end;
+end;
+
 Procedure SetStr(OJSON: TJSONObject; const FieldName, Value: String); Overload;
 begin
   OJSON.RemovePair(fieldName);
@@ -1321,7 +1345,7 @@ begin
      end;
 end;
 
-Procedure JSONRemove(var sJSON: String; const FieldName: String);
+Procedure StrRemove(var sJSON: String; const FieldName: String);
 var JSON: TJSONObject;
 begin
   JSON:=CreateTJSONObject(sJSON);
@@ -1331,6 +1355,35 @@ begin
        sJSON:=JSON.ToString;
        FreeAndNil(JSON);
      end;
+end;
+
+function GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
+Var
+    JSONValue: TJSONValue;
+    Ok: Boolean;
+begin
+  Ok:=false;
+  try
+    JSONValue:=oJSON.GetValue(FieldName);
+    If oJSON.TryGetValue(fieldname,Ok) Then
+        ;
+  except
+  end;
+  Result:=Ok;
+end;
+
+function GetBool(const sJSON: String; const FieldName: string): boolean; Overload;
+var JSON: TJSONObject;
+    Ok: Boolean;
+begin
+  Ok:=false;
+  JSON:=CreateTJSONObject(sJSON);
+  if JSON<>Nil then
+     begin
+       Ok:=JSON.GetValue<Boolean>(fieldName);
+       FreeAndNil(JSON);
+     end;
+  result:=Ok;
 end;
 
 Function GetFloat(FT: TDataSet; const FieldName: String): Double; Overload;

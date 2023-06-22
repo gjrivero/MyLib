@@ -50,7 +50,7 @@ type
     function  ParamsToJSONObject(params: TFDParams): TJSONObject;
     function cmdAdd(Const dbTableName,
                           Context: String;
-                          fldsReturn: String=''): TJSONObject;
+                          fldsReturn: String): TJSONObject;
     function cmdUpd(Const dbTableName,
                           Context: String;
                           Condition: String): TJSONObject;
@@ -91,11 +91,12 @@ var
   FDM: TFDM;
   RDBMSKind: TFDRDBMSKind;
   HTTP_PORT: Integer= 8080;
+
   DBMessageResult,
   ASettingsFileName: String;
-  ACustDatabase,
+
+  ADefConnection: String;
   ADriverVendor,
-  ADefConnection,
   ADatabaseServer,
   ASQLiteSecurity: TStringList;
 
@@ -117,14 +118,14 @@ function GetData( sQuery: TStrings;
 
 function AddData( const dbTableName: String;
                         Context: TJSONValue;
-                        fldsReturn: String='' ): TJSONObject; Overload;
+                        fldsReturn: String='id' ): TJSONObject; Overload;
 function AddData( const dbTableName,
                         Context: String;
-                        fldsReturn: String='' ): TJSONObject; Overload;
+                        fldsReturn: String='id' ): TJSONObject; Overload;
 function AddData( const dbTableName: string;
                   const fldNames: Array of String;
                   const fldValues: Array of const;
-                        fldsReturn: String='' ): TJSONObject; Overload;
+                        fldsReturn: String='id' ): TJSONObject; Overload;
 
 function UpdData( const dbTableName: String;
                         Context: TJSONValue;
@@ -166,9 +167,11 @@ function SetFDParams( const fldNames: Array Of String;
 function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
 
-procedure SetDataBaseParams( const Context: String);
-procedure LoadConnectSettings( const ProgDataPath: String; var ASettingsFileName: String);
-procedure SaveConnectSettings();
+procedure LoadConnectSettings( const ProgDataPath: String;
+                                     pCustConnection: TStringList;
+                               var ASettingsFileName,
+                                   ActiveCustomer: String);
+procedure SaveConnectSettings(pCustConnection: TStringList; const ActiveCustomer: String);
 
 implementation
 
@@ -530,7 +533,7 @@ Var
 {$ENDIF}
 begin
 {$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
-  if forAudit then
+  if HeaderEnabled And forAudit then
      begin
        Session:= TDSSessionManager.GetThreadSession;
        userId:= Session.GetData('loginID');
@@ -718,27 +721,27 @@ begin
   case RDBMSKind of
    TFDRDBMSKinds.MSSQL:
      begin
-       cCmd.Add('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;');
+       cCmd.Add('SET TRANSACTION ISOLATION LEVEL READ COMMITTED;');
        cCmd.Add('DECLARE ');
        if sDecl<>Nil then
-          cCmd.Add(sDecl.Text);
-       cCmd.Add('  @ERROR INT=0;');
+          cCmd.AddStrings(sDecl);
+       cCmd.Add('  '+IfThen(sDecl=Nil,'',',')+'@ERROR INT=0;');
        cCmd.Add('BEGIN TRANSACTION;');
        cCmd.Add('BEGIN TRY');
      end;
    TFDRDBMSKinds.MySQL:
      begin
-       cCmd.Add('SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;');
+       cCmd.Add('SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;');
        cCmd.Add('DECLARE @Error INT DEFAULT 0;');
        if sDecl<>Nil then
-          cCmd.Add(sDecl.Text);
+          cCmd.AddStrings(sDecl);
        cCmd.Add('START TRANSACTION;');
      end;
    TFDRDBMSKinds.PostgreSQL:
      begin
        cCmd.Add('DECLARE');
        if sDecl<>Nil then
-          cCmd.Add(sDecl.Text);
+          cCmd.AddStrings(sDecl);
        cCmd.Add('  _error INTEGER DEFAULT 0;');
        cCmd.Add('BEGIN');
        cCmd.Add('  BEGIN;');
@@ -746,7 +749,7 @@ begin
    TFDRDBMSKinds.SQLite: ;
   end;
   //--------------------------------
-  cCmd.Add(cSQL.Text);
+  cCmd.AddStrings(cSQL);
   //--------------------------------
   case RDBMSKind of
    TFDRDBMSKinds.MSSQL:
@@ -804,8 +807,14 @@ begin
   Try
     Qry.OpenOrExecute;
     Result:=Qry.AsJSONObject;
-    if Not autoCommit then
-       Cnx.Commit;
+    if GetInt(Qry,'error')<>0 then
+       begin
+         if Not autoCommit then
+            Cnx.Rollback;
+       end
+    else
+       if Not autoCommit then
+          Cnx.Commit;
   except
    on E: EFDDBEngineException do  begin
            if Not autoCommit then
@@ -820,7 +829,7 @@ End;
 
 function TFDM.cmdAdd( const dbTableName,
                             Context: String;
-                            fldsReturn: String=''): TJSONObject;
+                            fldsReturn: String): TJSONObject;
 
   procedure InsTable( iSQL: TStringList;
                       const DBTABLE: String;
@@ -842,9 +851,9 @@ function TFDM.cmdAdd( const dbTableName,
          seqName:='seq_'+seqName;
          iSQL.Add(sIns+';');
          iSQL.Add('IF EXISTS(SELECT name FROM sys.sequences WHERE name='+QuotedStr(seqName)+')');
-         iSQL.Add('   SELECT current_value id FROM sys.sequences WHERE name='+QuotedStr(seqName)+';');
+         iSQL.Add('   SELECT @ID=CAST(current_value AS INT) FROM sys.sequences WHERE name='+QuotedStr(seqName)+';');
          iSQL.Add('ELSE');
-         iSQL.Add('   SELECT IDENT_CURRENT(' + QuotedStr(DBTABLE) + ') AS id;');
+         iSQL.Add('   SELECT @ID=IDENT_CURRENT(' + QuotedStr(DBTABLE) + ');');
        end;
      TFDRDBMSKinds.MYSQL:
        begin
@@ -858,19 +867,29 @@ function TFDM.cmdAdd( const dbTableName,
   end;
 
 Var
-  sCmd: TStringList;
+  sCmd,
+  SdCL: TStringList;
   AJSON: TJSONArray;
   sFields,
   sValues,
   sSetVal: String;
 begin
   sCmd:=TStringList.create;
+  sDcl:=TStringList.create;
   try
     GetFieldsvalues(Context,sFields,sValues,sSetVal);
     InsTable(sCmd,dbTableName,sFields,sValues);
-    result:=execTrans(sCmd,Nil,fldsReturn,nil);
+    case cnx.RDBMSKind Of
+     TFDRDBMSKinds.MSSQL:
+       begin
+         sDcl.Add('@ID INT=0,');
+         fldsReturn:='@ID '+fldsReturn;
+       end;
+    end;
+    result:=execTrans(sCmd,sDcl,fldsReturn,nil);
   finally
     sCmd.Destroy;
+    sDcl.Destroy;
   end;
 End;
 
@@ -943,9 +962,11 @@ end;
 
 
 procedure TFDM.CnxBeforeConnect(Sender: TObject);
+Var s: String;
 begin
   Cnx.Params.Text:=ADatabaseServer.Text;
   Cnx.DriverName:=ADatabaseServer.Values['DriverId'];
+
   RDBMSKind:=Cnx.RDBMSKind;
   FDM.autoCommit:=False;
   case Cnx.RDBMSKind of
@@ -1024,7 +1045,7 @@ end;
 
 function AddData( Const dbTableName: string;
                         Context: TJSONValue;
-                        fldsReturn: String='' ): TJSONObject; Overload;
+                        fldsReturn: String='id' ): TJSONObject; Overload;
 begin
   try
     Result:=FDM.cmdAdd(dbTableName,Context.ToString,fldsReturn);
@@ -1034,7 +1055,7 @@ end;
 
 function AddData( Const dbTableName,
                         Context: String;
-                        fldsReturn: String='' ): TJSONObject; Overload;
+                        fldsReturn: String='id' ): TJSONObject; Overload;
 begin
   try
     Result:=FDM.cmdAdd(dbTableName,Context,fldsReturn);
@@ -1046,7 +1067,7 @@ end;
 function AddData( Const dbTableName: string;
                   const fldNames:  Array of String;
                   const fldValues: Array of const;
-                        fldsReturn: String='' ): TJSONObject; Overload;
+                        fldsReturn: String='id' ): TJSONObject; Overload;
 var Context: String;
 begin
   Context:='';
@@ -1168,9 +1189,9 @@ begin
       '  FROM pg_catalog.pg_database'+
       ' WHERE {lcase(datname)} = {lcase('+QuotedStr(nameDB) +')};';
   end;
-  JSON:=GetData(SQry)[0] as TJSONObject;
+  JSON:=JSONArrayToObject(GetData(SQry));
   result:=false;
-  if Assigned(JSON) then
+  if (JSON<>Nil) And Assigned(JSON) then
      result:=GetInt(JSON,'db_exists')>0;
   JSON.Destroy;
 end;
@@ -1206,12 +1227,13 @@ begin
   result:=ProgDataPath;
 end;
 
-procedure SaveConnectSettings();
+procedure SaveConnectSettings(pCustConnection: TStringList; const ActiveCustomer: String);
 var
   pJSON,
   aJSON,
   sJSON,
   tJSON: String;
+  I: Integer;
 begin
   try
     tJSON:='';
@@ -1220,34 +1242,54 @@ begin
     SetInt(tJSON,'http_port',HTTP_PORT);
     SetJSON(aJSON,'host',tJSON);
 
-    SetStr(sJSON,'driverId',ADatabaseServer.Values['DriverID']);
-    SetStr(sJSON,'server',ADatabaseServer.Values['Server']);
-    SetStr(sJSON,'database',ADatabaseServer.Values['Database']);
-    SetStr(sJSON,'user_Name',ADatabaseServer.Values['User_Name']);
-    SetStr(sJSON,'password',ADatabaseServer.Values['Password']);
-    SetInt(sJSON,'data_Port',ADatabaseServer.Values['Data_Port']);
-    SetStr(sJSON,'OSAuthent',ADatabaseServer.Values['OSAuthent']);
+    SetStr(sJSON,'driverId',GetStr(ADefConnection,'driverId'));
+    SetStr(sJSON,'server',GetStr(ADefConnection,'server'));
+    SetStr(sJSON,'database',GetStr(ADefConnection,'database'));
+    SetStr(sJSON,'user_name',GetStr(ADefConnection,'user_name'));
+    SetStr(sJSON,'password',GetStr(ADefConnection,'password'));
+    SetInt(sJSON,'data_port',GetStr(ADefConnection,'data_port'));
+    SetStr(sJSON,'OSAuthent',GetStr(ADefConnection,'OSAuthent'));
     SetJSON(aJSON,'connection',sJSON);
 
     pJSON:='';
-    SetStr(pJSON,'vendorLib',ADriverVendor.Values['VendorLib']);
-    SetStr(pJSON,'vendorHome',ADriverVendor.Values['VendorHome']);
+    SetStr(pJSON,'vendorLib',ADriverVendor.Values['vendorLib']);
+    SetStr(pJSON,'vendorHome',ADriverVendor.Values['vendorHome']);
     SetJSON(aJSON,'provider',pJSON);
 
-    pJSON:='';
-    SetStr(pJSON,'name',ACustDatabase.Values['name']);
-    SetStr(pJSON,'role',ACustDatabase.Values['role']);
-    SetJSON(aJSON,'cust_data',pJSON);
+    tJSON:='';
+    for I := 0 to pCustConnection.count-1 do
+     begin
+       pJSON:=pCustConnection[I];
+       if (GetStr(pJSON,'database')=GetStr(ActiveCustomer,'database')) then
+          begin
+            SetBool(pJSON,'default',GetBool(ActiveCustomer,'default'));
+            SetBool(pJSON,'active',GetBool(ActiveCustomer,'active'));
+            pCustConnection[I]:=pJSON;
+          end;
+
+       tJSON:=tJSON+','+pJSON;
+     end;
+    if Not tJSON.IsEmpty then
+       begin
+         Delete(tJSON,1,1);
+         tJSON:='['+tJSON+']';
+         SetJSON(aJSON,'customers',tJSON);
+       end;
 
     saveTextfile(ASettingsFileName, AJSON, false); // Crypted
   finally
   end;
 end;
 
-procedure LoadConnectSettings(Const ProgDataPath: String; var ASettingsFileName: String);
+procedure LoadConnectSettings( Const ProgDataPath: String;
+                                     pCustConnection: TStringList;
+                               var ASettingsFileName,
+                                   ActiveCustomer: String);
 var
    JSON,
    aJSON: String;
+   tJSON: TJSONArray;
+   I: Integer;
 begin
   ASettingsFileName:=ProgDataPath+ASettingsFileName;
   if Not DirectoryExists(ProgDataPath) then
@@ -1255,33 +1297,63 @@ begin
        ForceDirectories(ProgDataPath);
      end;
   if Not FileExists(ASettingsFileName) then
-     SaveConnectSettings();
+     exit;
   JSON := loadTextfile(ASettingsFileName, false); // Crypted
   // -----------------------------------------------
   AJSON := GetStr(JSON,'host');
   HTTP_PORT:=GetInt(AJSON,'http_port');
   // -----------------------------------------------
-  AJSON := GetStr(JSON,'connection');
-  ADatabaseServer.Clear;
+  aJSON:=GetStr(JSON,'connection');
+  ADefConnection:=aJSON;  // Default Connection
+  // -----------------------------------------------
+  RDBMSKind:=GetDriverID(GetStr(AJSON, 'driverId'));
   ADatabaseServer.AddPair('DriverId', GetStr(AJSON, 'driverId'));
   ADatabaseServer.AddPair('Server', GetStr(AJSON, 'server'));
   ADatabaseServer.AddPair('Database', GetStr(AJSON, 'database'));
-  ADatabaseServer.AddPair('User_Name', GetStr(AJSON, 'user_Name'));
+  ADatabaseServer.AddPair('User_Name', GetStr(AJSON, 'user_name'));
   ADatabaseServer.AddPair('Password', GetStr(AJSON, 'password'));
-  ADatabaseServer.AddPair('Data_Port', GetStr(AJSON, 'data_Port'));
+  ADatabaseServer.AddPair('Data_Port', GetStr(AJSON, 'data_port'));
   ADatabaseServer.AddPair('OSAuthent', GetStr(AJSON, 'OSAuthent'));
-  ADefConnection.Text:=ADatabaseServer.Text;
+
   // -----------------------------------------------
   AJSON := GetStr(JSON,'provider');
   ADriverVendor.Clear;
-  ADriverVendor.AddPair('VendorLib', GetStr(AJSON, 'vendorLib'));
-  ADriverVendor.AddPair('VendorHome', GetStr(AJSON, 'vendorHome'));
+  ADriverVendor.AddPair('vendorLib', GetStr(AJSON, 'vendorLib'));
+  ADriverVendor.AddPair('vendorHome', GetStr(AJSON, 'vendorHome'));
   // -----------------------------------------------
-  AJSON := GetStr(JSON,'license');
-  ACustDatabase.Clear;
-  ACustDatabase.AddPair('branch', GetStr(AJSON, 'branch'));
-  ACustDatabase.AddPair('serial', GetStr(AJSON, 'serial'));
+  aJSON:= GetStr(JSON,'customers');
+  tJSON:=CreateTJSONArray(AJSON);
+  if pCustConnection=Nil then
+     pCustConnection:=TStringList.Create;
+  ActiveCustomer:='';
+  for I := 0 to tJSON.count-1 do
+    begin
+      var sCust:=tJSON.Items[I].ToString;
+      if GetBool(sCust,'default') then
+         Begin
+           ActiveCustomer:=sCust;
+           if GetBool(sCust,'active') then
+              ADatabaseServer.Values['Database']:=GetStr(ActiveCustomer,'database');
+         End;
+      pCustConnection.add(sCust);
+    end;
+  // -----------------------------------------------
 end;
+
+initialization
+  ASettingsFileName:= ChangeFileExt(ExtractFileName(ParamStr(0)), '.conf');
+  ADriverVendor:=TStringList.Create;
+  ADatabaseServer:=TStringList.Create;
+  ASQLiteSecurity:=TStringList.Create;
+finalization
+  ADriverVendor.Destroy;
+  ADatabaseServer.Destroy;
+  ASQLiteSecurity.Destroy;
+end.
+
+
+// .ContentAsString(TEncoding.UTF8)
+(*
 
 procedure SetDataBaseParams(Const Context: String);
 var database,
@@ -1305,28 +1377,12 @@ begin
 
   cust_data:=getStr(Context,'cust_data');
   ACustDatabase.Clear;
-  ACustDatabase.AddPair('name',GetStr(cust_data,'name'));
+  ACustDatabase.AddPair('default', GetStr(cust_data, 'default'));
+  ACustDatabase.AddPair('database',GetStr(cust_data,'database'));
   ACustDatabase.AddPair('role',GetStr(cust_data,'role'));
+  ACustDatabase.AddPair('branch', GetStr(cust_data, 'branch'));
+  ACustDatabase.AddPair('serial', GetStr(cust_data, 'serial'));
 end;
-
-initialization
-  ASettingsFileName:= ChangeFileExt(ExtractFileName(ParamStr(0)), '.conf');
-  ADatabaseServer:=TStringList.Create;
-  ADefConnection:=TStringList.Create;
-  ADriverVendor:=TStringList.Create;
-  ASQLiteSecurity:=TStringList.Create;
-  ACustDatabase:=TStringList.Create;
-finalization
-  ADatabaseServer.Destroy;
-  ADefConnection.Destroy;
-  ADriverVendor.Destroy;
-  ASQLiteSecurity.Destroy;
-  ACustDatabase.Destroy;
-end.
-
-
-// .ContentAsString(TEncoding.UTF8)
-(*
 
 
 //---------------------------------
