@@ -725,7 +725,9 @@ begin
        cCmd.Add('DECLARE ');
        if sDecl<>Nil then
           cCmd.AddStrings(sDecl);
-       cCmd.Add('  '+IfThen(sDecl=Nil,'',',')+'@ERROR INT=0;');
+       cCmd.Add('  '+IfThen(sDecl=Nil,'',',')+'@ERROR INT=0,');
+       cCmd.Add('  @ErrSeverity int=0,');
+       cCmd.Add('  @ErrMsg nvarchar(4000);');
        cCmd.Add('BEGIN TRANSACTION;');
        cCmd.Add('BEGIN TRY');
      end;
@@ -756,8 +758,10 @@ begin
      begin
        cCmd.Add('  IF @ERROR>0');
        cCmd.Add('  BEGIN');
-       cCmd.Add('    SELECT @ERROR error;');
-       cCmd.Add('    RAISERROR(''ERROR IN TRASACTION SQL'', @ERROR,1);');
+       cCmd.Add('    ROLLBACK;');
+       cCmd.Add('    SELECT @ErrMsg=''ERROR [''+CAST(@NUMERRORS AS VARCHAR(5))+''] IN TRASACTION'';');
+       cCmd.Add('    SELECT @ERROR error, @ErrMsg errmsg;');
+       cCmd.Add('    RAISERROR(@ErrMsg, @ERROR,1);');
        cCmd.Add('  END;');
        cCmd.Add('  COMMIT TRANSACTION;');
        cCmd.Add('  SELECT @ERROR error'+ifThen(sFields<>'',', '+sFields,'')+';');
@@ -765,9 +769,7 @@ begin
        cCmd.Add('BEGIN CATCH');
        cCmd.Add('  IF (@@TRANCOUNT>0) or (@ERROR<>0) ');
        cCmd.Add('     ROLLBACK;');
-       cCmd.Add('  DECLARE @ErrMsg nvarchar(4000), @ErrSeverity int;');
-       cCmd.Add('  SELECT @ErrMsg = ERROR_MESSAGE(),');
-       cCmd.Add('         @ErrSeverity = ERROR_SEVERITY()');
+       cCmd.Add('  SELECT @ErrMsg = ERROR_MESSAGE(),@ErrSeverity = ERROR_SEVERITY()');
        cCmd.Add('  SELECT -1 error, @ErrMsg errmsg, @errseverity errseverity;');
        cCmd.Add('  RAISERROR(@ErrMsg, @ErrSeverity, 1);');
        cCmd.Add('END CATCH;');
@@ -1262,8 +1264,7 @@ begin
        pJSON:=pCustConnection[I];
        if (GetStr(pJSON,'database')=GetStr(ActiveCustomer,'database')) then
           begin
-            SetBool(pJSON,'default',GetBool(ActiveCustomer,'default'));
-            SetBool(pJSON,'active',GetBool(ActiveCustomer,'active'));
+            pJSON:=ActiveCustomer;
             pCustConnection[I]:=pJSON;
           end;
 
@@ -1273,7 +1274,7 @@ begin
        begin
          Delete(tJSON,1,1);
          tJSON:='['+tJSON+']';
-         SetJSON(aJSON,'customers',tJSON);
+         SetJSON(aJSON,'clients',tJSON);
        end;
 
     saveTextfile(ASettingsFileName, AJSON, false); // Crypted
@@ -1321,7 +1322,7 @@ begin
   ADriverVendor.AddPair('vendorLib', GetStr(AJSON, 'vendorLib'));
   ADriverVendor.AddPair('vendorHome', GetStr(AJSON, 'vendorHome'));
   // -----------------------------------------------
-  aJSON:= GetStr(JSON,'customers');
+  aJSON:= GetStr(JSON,'clients');
   tJSON:=CreateTJSONArray(AJSON);
   if pCustConnection=Nil then
      pCustConnection:=TStringList.Create;
@@ -1329,11 +1330,13 @@ begin
   for I := 0 to tJSON.count-1 do
     begin
       var sCust:=tJSON.Items[I].ToString;
-      if GetBool(sCust,'default') then
+      if (ActiveCustomer='') And GetBool(sCust,'default') then
          Begin
            ActiveCustomer:=sCust;
            if GetBool(sCust,'active') then
-              ADatabaseServer.Values['Database']:=GetStr(ActiveCustomer,'database');
+              begin
+                ADatabaseServer.Values['Database']:=GetStr(ActiveCustomer,'database');
+              end;
          End;
       pCustConnection.add(sCust);
     end;

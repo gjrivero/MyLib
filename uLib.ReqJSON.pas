@@ -6,15 +6,16 @@ uses
    System.Classes
   ,System.JSON
   ,System.UITypes
+  ,FireDAC.Stan.Param
   ;
 
 function callGet( const sTblName: String;
                         sfields: String='*';
                         sCondition: String='';
-                        sOrder: string=''): TJSONArray;
+                        sOrder: string=''): TJSONArray; overload;
 function callGetOne( const sTblName: String;
                         sfields: String;
-                        sCondition: String): TJSONObject;
+                        sCondition: String): TJSONObject; overload;
 
 function callAdd( const DBTableName, Context: String): TJSONObject;
 function callUpd( const DBTableName, Context, sCondition: String): TJSONObject;
@@ -147,11 +148,13 @@ begin
   Result:= GetData(sQry);
 end;
 
+
 function callGetOne( const sTblName: String;
                            sfields: String;
                            sCondition: String): TJSONObject;
 begin
   result:=JSONArrayToObject(CallGet(sTblName,sfields,sCondition));
 end;
+
 
 end.

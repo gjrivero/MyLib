@@ -131,6 +131,7 @@ Const
     PR_AUDIT_TRACE = 'sp_audit_trace';
     PR_LAST_UPDATE = 'sp_last_update';
     PR_NEXT_VALUE = 'sp_next_value';
+    PR_NEXT_SEQUENCE = 'sp_sequence_value';
     PR_ENTP_SEQUENCE ='sp_entp_sequence';
 
 
@@ -200,6 +201,9 @@ end;
 procedure TTableBase.addFld(fieldName: String; fieldType: TFieldType;
   const len: Integer; const attributes: TSetFieldAttributes;
   const aDefault: String);
+
+const
+    TAB_D =26;
 var ln: Integer;
     Ch,
     st: String;
@@ -324,10 +328,10 @@ begin
        if (fieldType In [ftAutoInc]) and isSequence then
           Case RDBMSKind Of
             TFDRDBMSKinds.PostgreSQL:
-              St:=St+#13+LeftS(' ',27)+
+              St:=St+#13+LeftS(' ',TAB_D)+
                   'DEFAULT NEXTVAL('+QuotedStr(aSchema+'seq_'+lTableName)+')';
             TFDRDBMSKinds.MSSQL:
-              St:=St+#13+LeftS(' ',27)+
+              St:=St+#13+LeftS(' ',TAB_D)+
                   'DEFAULT (NEXT VALUE FOR '+aSchema+'seq_'+lTableName+')';
             TFDRDBMSKinds.SQLite: ;
             TFDRDBMSKinds.MySQL: ;
@@ -352,38 +356,29 @@ begin
             case fieldType of
              ftInteger:
                   if Not aDefault.IsEmpty then
-                     st:=St+#13+LeftS(' ',27)+
-                            'DEFAULT '+aDefault
+                     st:=St+' DEFAULT '+aDefault
                   else
-                     st:=St+#13+LeftS(' ',27)+
-                            'DEFAULT 0';
+                     st:=St+' DEFAULT 0';
              ftFloat,
              ftBoolean,
              ftCurrency,
              ftSmallInt:  if Not aDefault.IsEmpty then
-                             st:=St+#13+LeftS(' ',27)+
-                                 'DEFAULT '+aDefault
+                             st:=St+' DEFAULT '+aDefault
                           else
-                             st:=St+#13+LeftS(' ',27)+
-                                 'DEFAULT 0';
+                             st:=St+' DEFAULT 0';
              ftDate:      If (atNotNull In attributes) Then
-                             st:=St+#13+LeftS(' ',27)+
-                                 'DEFAULT CURRENT_DATE';
+                             st:=St+' DEFAULT CURRENT_DATE';
              ftDateTime:  If (atNotNull In attributes) Then
-                             st:=St+#13+LeftS(' ',27)+
-                                 'DEFAULT CURRENT_TIMESTAMP';
+                             st:=St+' DEFAULT CURRENT_TIMESTAMP';
              ftTimeStamp: Case RDBMSKind Of
                             TFDRDBMSKinds.SQLite:
-                              St:=St+#13+LeftS(' ',27)+
-                                 'DEFAULT (DATETIME(CURRENT_TIMESTAMP, ''localtime''))';
+                              St:=St+' DEFAULT (DATETIME(CURRENT_TIMESTAMP, ''localtime''))';
                             else
-                              St:=St+#13+LeftS(' ',27)+
-                                'DEFAULT CURRENT_TIMESTAMP';
+                              St:=St+' DEFAULT CURRENT_TIMESTAMP';
                           End;
             else
                         if Not aDefault.IsEmpty then
-                           st:=St+#13+LeftS(' ',27)+
-                              'DEFAULT '+aDefault;
+                           st:=St+' DEFAULT '+aDefault;
             end;
           end;
      end;
@@ -895,7 +890,7 @@ begin
         fSQL.Add('$$ LANGUAGE plpgsql;');
         fSQL.Add('--GO');
 
-        (*
+
         fSQL.Add('CREATE OR REPLACE FUNCTION '+PR_NEXT_SEQUENCE+'()');
         fSQL.Add('RETURNS TRIGGER AS $$');
         fSQL.Add('DECLARE');
@@ -905,7 +900,6 @@ begin
         fSQL.Add('  UPDATE '+ASchema+lTableName);
         fSQL.Add('     SET new_id=value, value=value+1');
         fSQL.Add('   WHERE (table_name='+QuotedStr(ASchema+lTableName)+');');
-        *)
         fSQL.Add('  NEW.id = new_id;');
         fSQL.Add('  RETURN NEW;');
         fSQL.Add('END;');

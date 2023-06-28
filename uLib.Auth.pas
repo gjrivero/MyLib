@@ -9,9 +9,11 @@ uses
 
 Type
    TUserWebAuthenticate = class
-     function GetDeveloper(const ApiKey: String): TJSONObject; virtual;
      function GetUser(const user, shash: String): String; virtual;
+     function GetDeveloper(const ApiKey: String): TJSONObject; virtual;
+     function OtherActions(action: Integer): boolean; virtual;
 
+     procedure SetDataSession(aJSON: String); virtual;
      procedure CommonAuth( const aUser, aPassword: string;
                            UserRoles: TStrings;
                            var aResp: String);
@@ -19,20 +21,19 @@ Type
      constructor Create( Request: TWebRequest;
                          const devKey: string='');
    protected
+     JSONBody: String;
 
    private
      User,
      Method,
      Apikey,
-     JSONBody,
      Dev_Key_Name: string;
      function GetAction(sPath: String): Integer;
      function ValidateDeveloper( var errorMsg: String): Integer;
      function ActionLogin( const sHASH: String;
                             var aJSON: String;
                             var loginID: Integer): boolean;
-     function ActionSignUp(const sHASH: String; var aJSON: String): boolean;
-     procedure SetDataSession(aJSON: String);
+     function ActionSignUp(const sHASH, sRole: String; var aJSON: String): boolean;
    public
    end;
 
@@ -53,8 +54,8 @@ Uses
 
 Const
    ACT_NO_VALID = 0;
-   ACT_SIGNUP = 1;
-   ACT_LOGIN = 2;
+   ACT_SIGNUP   = 1;
+   ACT_LOGIN    = 2;
    ACT_VALIDATE = 3;
 
 type
@@ -76,6 +77,11 @@ end;
 function TUserWebAuthenticate.GetUser(const user, shash: String): String;
 begin
   result:='';
+end;
+
+function TUserWebAuthenticate.OtherActions(action: Integer): boolean;
+begin
+  result:=false;
 end;
 
 function TUserWebAuthenticate.GetAction(sPath: String): Integer;
@@ -113,7 +119,7 @@ var
    aJSON: TJSONObject;
    valid: Boolean;
 begin
-  result:=0;
+  result:=0; //-1;
   If (dev_key_name<>'') Then
      begin
        valid:=false;
@@ -126,19 +132,22 @@ begin
               (GetInt(aJSON,'active')=1);
             aJSON.DisposeOf;
           end;
+(*
        if Not Valid then
           begin
             errorMsg:='Developer API-Key not active or doesn''t exists!';
             exit(-1);
           end;
+*)
      end;
 end;
 
-function TUserWebAuthenticate.ActionSignUp( const sHASH: String;
+function TUserWebAuthenticate.ActionSignUp( const sHASH, sRole: String;
                                             var aJSON: String): Boolean;
 begin
   SetStr(aJSON,'userlogin',user);
   SetStr(aJSON,'passwd',sHash);
+  SetStr(aJSON,'role',sRole);
   SetStr(aJSON,'firstname', GetStr(JSONBody,'firstName'));
   SetStr(aJSON,'lastname', GetStr(JSONBody,'lastName'));
   SetStr(aJSON,'email', GetStr(JSONBody,'email'));
@@ -169,7 +178,6 @@ Var
    aJSON,
    sRole,
    sHash,
-   db_cust,
    errorMsg: string;
    Action,
    loginID,
@@ -188,54 +196,55 @@ begin
   loginID:=0;
   developID:=0;
   sRole:=GetStr(JSONBody,'role');
+  if sRole='' then
+     sRole:='standard';
+  aJSON:='';
   //---------------------------------
   if (Action In [ACT_SIGNUP,ACT_LOGIN]) then
      developID:=validateDeveloper(errorMsg);
-  aJSON:='';
-  if (Action In [ACT_SIGNUP,ACT_LOGIN]) then
-     Begin
-       StringHash := THashSHA2.Create();
-       sHash:=StringHash.GetHashString(LowerCase(User)+':'+aPassword);
-       Valid:=developID>0;
-       Case Action Of
-        ACT_SIGNUP:
-           Valid:=Valid And ActionSignUp(sHash,aJSON);
-        ACT_LOGIN:
-           begin
-             Valid:=Valid And ActionLogin(sHash,aJSON,loginID);
-             if Not Valid then
-                begin
-                  errorMsg:='User not active or doesn''t exists!';
-                end;
-           end;
-       End;
+  if (developID>-1) then
+     case Action of
+       ACT_SIGNUP,
+       ACT_LOGIN:
+         Begin
+           StringHash := THashSHA2.Create();
+           sHash:=StringHash.GetHashString(LowerCase(User)+':'+aPassword);
+           Case Action Of
+            ACT_SIGNUP:
+               Valid:=ActionSignUp(sHash,sRole,aJSON);
+            ACT_LOGIN:
+               begin
+                 Valid:=ActionLogin(sHash,aJSON,loginID);
+                 if Not Valid then
+                    begin
+                      errorMsg:='User not active or doesn''t exists!';
+                    end;
+               end;
+           End;
+         end;
+       else
+         valid:=OtherActions(Action);
      end;
   if Valid then
-     begin
-       if GetStr(aJSON,'role')='' then
-          begin
-            sRole:='standard';
-            SetStr(aJSON,'role',sRole);
-          end;
+     Case Action Of
+      ACT_SIGNUP,
+      ACT_LOGIN:
+         begin
+           SetStr(aJSON,'userlogin',user);
+           SetInt(aJSON,'userID', loginID);
+           SetInt(aJSON,'developID',developID);
+           SetInt(aJSON,'appType',GetInt(JSONBody,'appID'));
 
-       if (Action In [ACT_SIGNUP,ACT_LOGIN]) then
-          begin
-            SetStr(aJSON,'userlogin',user);
-            SetInt(aJSON,'userID', loginID);
-            SetInt(aJSON,'developID',developID);
-            SetInt(aJSON,'appType',GetInt(JSONBody,'appID'));
-            db_cust:=GetStr(aJSON,'database');
+           SetDataSession(aJSON);
 
-            SetDataSession(aJSON);
-          end;
-       sRole:=GetStr(aJSON,'role');
-       UserRoles.Add(sRole);
+           StrRemove(aJSON,'passwd');
+           sRole:=GetStr(aJSON,'role');
+           UserRoles.Add(sRole);
+         end;
      end;
-  if db_cust='' then
-     db_cust:=ADatabaseServer.Values['database'];
   aResp:='';
   SetBool(aResp,'valid',Valid);
-  SetStr(aResp,'database',db_Cust);
+  SetJSON(aResp,'data',aJSON);
   SetStr(aResp,'message',errorMsg);
 end;
 
