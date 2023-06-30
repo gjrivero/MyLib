@@ -5,22 +5,31 @@ interface
 uses
     Web.HTTPApp,
     System.JSON,
+    System.SysUtils,
     System.classes;
+
+Const
+   ACT_NO_VALID = 0;
+   ACT_SIGNUP   = 1;
+   ACT_LOGIN    = 2;
+   ACT_VALIDATE = 3;
 
 Type
    TUserWebAuthenticate = class
      function GetUser(const user, shash: String): String; virtual;
      function GetDeveloper(const ApiKey: String): TJSONObject; virtual;
-     function OtherActions(action: Integer): boolean; virtual;
+     function OtherActions(const method: string; var aJSON: String): boolean; virtual;
 
      procedure SetDataSession(aJSON: String); virtual;
-     procedure CommonAuth( const aUser, aPassword: string;
+     procedure CommonAuth( aActions: TIntegerSet;
+                           const aUser, aPassword: string;
                            UserRoles: TStrings;
                            var aResp: String);
 
      constructor Create( Request: TWebRequest;
                          const devKey: string='');
    protected
+     Base_Url,
      JSONBody: String;
 
    private
@@ -42,7 +51,8 @@ implementation
 
 Uses
     System.Hash,
-    System.SysUtils,
+    System.Generics.Collections,
+
     IdHTTPHeaderInfo,
     IdHTTPWebBrokerBridge,
     Datasnap.DSSession,
@@ -51,12 +61,6 @@ Uses
     uLib.Data,
     uLib.Helpers
     ;
-
-Const
-   ACT_NO_VALID = 0;
-   ACT_SIGNUP   = 1;
-   ACT_LOGIN    = 2;
-   ACT_VALIDATE = 3;
 
 type
   TIdHTTPAppRequestHelper = class helper for TIdHTTPAppRequest
@@ -79,7 +83,7 @@ begin
   result:='';
 end;
 
-function TUserWebAuthenticate.OtherActions(action: Integer): boolean;
+function TUserWebAuthenticate.OtherActions(const method: string; var aJSON: String): boolean;
 begin
   result:=false;
 end;
@@ -92,9 +96,9 @@ begin
   else
      if sPath='signup' then
         result:=ACT_SIGNUP
-     else
-        if sPath='validate' then
-           result:=ACT_VALIDATE;
+  else
+     if sPath='validate' then
+        result:=ACT_VALIDATE;
 end;
 
 procedure TUserWebAuthenticate.SetDataSession(aJSON: String);
@@ -171,7 +175,8 @@ begin
      end;
 end;
 
-procedure TUserWebAuthenticate.CommonAuth( const aUser, aPassword: string;
+procedure TUserWebAuthenticate.CommonAuth( aActions: TIntegerSet;
+                                           const aUser, aPassword: string;
                                            UserRoles: TStrings;
                                            var aResp: String);
 Var
@@ -190,7 +195,7 @@ begin
   action:=GetAction(Method);
   if action=ACT_NO_VALID then
      Exit;
-  Valid:=Action In [ACT_VALIDATE];
+  Valid:=Action In aActions;
   //---------------------------------
   User:=aUser;
   loginID:=0;
@@ -223,7 +228,7 @@ begin
            End;
          end;
        else
-         valid:=OtherActions(Action);
+         valid:=OtherActions(Method,aJSON);
      end;
   if Valid then
      Case Action Of
@@ -258,6 +263,7 @@ Var
    I: Integer;
 begin
   Method:=LowerCase(GetStr(Request.PathInfo,3,'/'));
+  Base_Url:=Request.PathInfo;
   dev_key_name:=devKey;
   aHeaders:=TStringList.Create;
   Try

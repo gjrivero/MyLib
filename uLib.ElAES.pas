@@ -12,9 +12,13 @@ unit uLib.ElAES;
 interface
 
 uses
-  Classes, SysUtils;
+  IdHMAC,
+  System.Classes,
+  System.SysUtils;
 
 type
+  TIdHMACClass = class of TIdHMAC;
+
   EAESError = class(Exception);
 
   PInteger  = ^Integer;
@@ -35,7 +39,9 @@ type
   PAESExpandedKey192 =^TAESExpandedKey192;
   PAESExpandedKey256 =^TAESExpandedKey256;
 
-// Key expansion routines for encryption  
+
+
+// Key expansion routines for encryption
 
 procedure ExpandAESKeyForEncryption(const Key: TAESKey128;
   var ExpandedKey: TAESExpandedKey128); overload;
@@ -150,8 +156,16 @@ procedure DecryptAESStreamCBC(Source: TStream; Count: cardinal;
   const ExpandedKey: TAESExpandedKey256;  const InitVector: TAESBuffer;
   Dest: TStream); overload;
 
-function AESEncrypt({aType: integer; }const sPlaintText, StrKey: AnsiString): AnsiString;
-function AESDecrypt({aType: integer; }const sPlaintText, StrKey: AnsiString): AnsiString;
+function AESEncryptECB(const sPlaintText, StrKey: AnsiString): AnsiString;
+function AESDecryptECB(const sPlaintText, StrKey: AnsiString): AnsiString;
+function AESEncryptCBC(const sPlaintText, StrKey: AnsiString; IV: TBytes): AnsiString;
+function AESDecryptCBC(const sPlaintText, StrKey: AnsiString): AnsiString;
+
+function PBKDF2( const Password: AnsiString;
+                 const Salt: TBytes;
+                 const IterationsCount: Integer;
+                 const KeyLengthInBytes: Integer;
+                 PRFC: TIdHMACClass = nil): TBytes;
 
 resourcestring
   SInvalidInBufSize = 'Invalid buffer size for decryption';
@@ -159,6 +173,11 @@ resourcestring
   SWriteError = 'Stream write error';
 
 implementation
+
+uses
+  System.Math, IdHMACSHA1, IdGlobal;
+
+// Modeled after http://www.di-mgt.com.au/cryptoKDFs.html#PKCS5
 
 type
   PLongWord = ^LongWord;
@@ -2488,7 +2507,8 @@ begin
   end;
 end;
 
-function AESEncrypt({aType: integer; }const sPlaintText, StrKey: AnsiString): AnsiString;
+
+function AESEncryptECB(const sPlaintText, StrKey: AnsiString): AnsiString;
 var
   Source: TMemoryStream;
   Dest: TMemoryStream;
@@ -2509,12 +2529,8 @@ begin
     FillChar( Key, SizeOf(Key), 0 );
     Move( PAnsiChar(AnsiString(StrKey))^,Key,Min(SizeOf(Key),Length(StrKey)));
 
-    {case aType of
-      1: EncryptAESStreamCBC(Source, 0, Key, Dest );
+    EncryptAESStreamECB( Source, 0, Key, Dest );
 
-      else}
-         EncryptAESStreamECB( Source, 0, Key, Dest );
-    {end;}
     // Display encrypted text using hexadecimals...
     Dest.Position := 0;
     setlength(str, Dest.Size);
@@ -2526,7 +2542,81 @@ begin
   end;
 end;
 
-function AESDecrypt({aType: integer; }const sPlaintText, StrKey: AnsiString): AnsiString;
+function AESDecryptECB(const sPlaintText, StrKey: AnsiString): AnsiString;
+var
+  Source: TMemoryStream;
+  Dest: TMemoryStream;
+  Size: integer;
+  Key: TAESKey128;
+  str: AnsiString;
+begin
+  // Convert hexadecimal to a strings before decrypting...
+  Source := TMemoryStream.Create( );
+  Dest   := TMemoryStream.Create( );
+
+  try
+    //str := HexToString(sPlaintText);
+    str := sPlaintText;
+    Source.Write(PAnsiChar(str)^, length(str));
+    Source.Position := 0;
+    // Start decryption...
+    Size := Source.Size;
+    Source.ReadBuffer(Size, SizeOf(Size));
+
+    // Prepare key...
+    FillChar(Key, SizeOf(Key), 0);
+    Move(PAnsiChar(AnsiString(StrKey))^, Key, Min(SizeOf(Key), Length(StrKey)));
+
+    DecryptAESStreamECB(Source, Source.Size - Source.Position, Key, Dest);
+
+    // Display unencrypted text...
+    Dest.position := 0;
+    SetLength(str, dest.Size);
+    Dest.Read(PAnsiChar(str)^, dest.Size);
+    result := str;
+
+  finally
+    Source.Free;
+    Dest.Free;
+  end;
+end;
+
+function AESEncryptCBC(const sPlaintText, StrKey: AnsiString; IV: TBytes): AnsiString;
+var
+  Source: TMemoryStream;
+  Dest: TMemoryStream;
+  aSize: integer;
+  IVBuff: TAESBuffer;
+  Key: TAESKey256;
+  str: AnsiString;
+begin
+  Source := TMemoryStream.Create();
+  Dest   := TMemoryStream.Create();
+  try
+    // Save data to memory stream...
+    Source.Write(PAnsiChar(AnsiString(sPlaintText))^, length(sPlaintText));
+    Source.Position := 0;
+    aSize := Source.Size;
+    Dest.WriteBuffer( aSize, SizeOf(aSize) );
+
+    // Prepare key...
+    FillChar( Key, SizeOf(Key), 0 );
+    Move( PAnsiChar(AnsiString(StrKey))^,Key,Min(SizeOf(Key),Length(StrKey)));
+    Move( IV, IVBuff, Sizeof(IVBuff));
+
+    EncryptAESStreamCBC( Source, 0, Key, IVBuff, Dest );
+    // Display encrypted text using hexadecimals...
+    Dest.Position := 0;
+    setlength(str, Dest.Size);
+    Dest.Read(PAnsiChar(str)^, Dest.Size);
+    result := str; //StringToHex( str );
+  finally
+    Source.Free;
+    Dest.Free;
+  end;
+end;
+
+function AESDecryptCBC(const sPlaintText, StrKey: AnsiString): AnsiString;
 var
   Source: TMemoryStream;
   Dest: TMemoryStream;
@@ -2571,4 +2661,76 @@ begin
   end;
 end;
 
+
+function PBKDF2( const Password: AnsiString;
+                 const Salt: TBytes;
+                 const IterationsCount: Integer;
+                 const KeyLengthInBytes: Integer;
+                 PRFC: TIdHMACClass = nil): TBytes;
+var
+  PRF: TIdHMAC;
+  D: Integer;
+  I: Int32;
+  F: TIdBytes;
+  U: TIdBytes;
+  J: Integer;
+  T: TIdBytes;
+  lPassword, lSalt: TIdBytes;
+
+  function _ConcatenateBytes(const _B1: TIdBytes; const _B2: TIdBytes): TIdBytes; inline;
+  begin
+    SetLength(Result, Length(_B1) + Length(_B2));
+    if Length(_B1) > 0 then
+      Move(_B1[low(_B1)], Result[low(Result)], Length(_B1));
+    if Length(_B2) > 0 then
+      Move(_B2[low(_B2)], Result[low(Result) + Length(_B1)], Length(_B2));
+  end;
+
+  function _INT_32_BE(const _I: Int32): TIdBytes; inline;
+  begin
+    Result := TIdBytes.Create(_I shr 24, _I shr 16, _I shr 8, _I);
+  end;
+
+  procedure _XorBytes(var _B1: TIdBytes; const _B2: TIdBytes); inline;
+  var
+    _I: Integer;
+  begin
+    for _I := low(_B1) to high(_B1) do
+      _B1[_I] := _B1[_I] xor _B2[_I];
+  end;
+
+begin
+  if not Assigned(PRFC) then
+    PRFC := TIdHMACSHA1;
+  PRF := PRFC.Create;
+  try
+    {
+      Conversion TBytes -> TidBytes as Remy Lebeau says
+      https://stackoverflow.com/a/18854367/6825479
+    }
+    SetLength(lPassword,Length(Password));
+    move(Password[1],lPassword[0],length(Password));
+    lSalt := TIdBytes(Salt);
+
+    D := Ceil(KeyLengthInBytes / PRF.HashSize);
+    PRF.Key := lPassword;
+    for I := 1 to D do
+    begin
+      F := PRF.HashValue(_ConcatenateBytes(lSalt, _INT_32_BE(I)));
+      U := Copy(F);
+      for J := 2 to IterationsCount do
+      begin
+        U := PRF.HashValue(U);
+        _XorBytes(F, U);
+      end;
+      T := _ConcatenateBytes(T, F);
+    end;
+    Result := TBytes(Copy(T, low(T), KeyLengthInBytes));
+  finally
+    PRF.Free;
+  end;
+end;
+
+
 end.
+

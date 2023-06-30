@@ -725,9 +725,9 @@ begin
        cCmd.Add('DECLARE ');
        if sDecl<>Nil then
           cCmd.AddStrings(sDecl);
-       cCmd.Add('  '+IfThen(sDecl=Nil,'',',')+'@ERROR INT=0,');
-       cCmd.Add('  @ErrSeverity int=0,');
-       cCmd.Add('  @ErrMsg nvarchar(4000);');
+       cCmd.Add('  '+IfThen(sDecl=Nil,'',',')+'@ERROR INT=0');
+       cCmd.Add('  ,@ErrSeverity int=0');
+       cCmd.Add('  ,@ErrMsg nvarchar(4000);');
        cCmd.Add('BEGIN TRANSACTION;');
        cCmd.Add('BEGIN TRY');
      end;
@@ -759,7 +759,7 @@ begin
        cCmd.Add('  IF @ERROR>0');
        cCmd.Add('  BEGIN');
        cCmd.Add('    ROLLBACK;');
-       cCmd.Add('    SELECT @ErrMsg=''ERROR [''+CAST(@NUMERRORS AS VARCHAR(5))+''] IN TRASACTION'';');
+       cCmd.Add('    SELECT @ErrMsg=''ERROR [''+CAST(@ERROR AS VARCHAR(5))+''] IN TRASACTION'';');
        cCmd.Add('    SELECT @ERROR error, @ErrMsg errmsg;');
        cCmd.Add('    RAISERROR(@ErrMsg, @ERROR,1);');
        cCmd.Add('  END;');
@@ -802,7 +802,9 @@ begin
   Qry.SQL.Clear;
   Qry.SQL.Assign(cCmd);
   if pParams<>Nil then
-     Qry.Params:=pParams;
+     begin
+       Qry.Params:=pParams;
+     end;
   Qry.Prepare;
   if Not autoCommit then
      Cnx.StartTransaction;
@@ -948,7 +950,9 @@ begin
   Qry.SQL.Assign(aHeader);
   Qry.SQL.Add(sQuery);
   if pParams<>Nil then
-     Qry.Params:=pParams;
+     begin
+       Qry.Params:=pParams;
+     end;
   Qry.Prepare;
   try
     Qry.Open;
