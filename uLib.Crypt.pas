@@ -3,22 +3,23 @@ unit uLib.Crypt;
 interface
 
 uses
-   System.SysUtils;
+  System.Classes,
+  System.SysUtils;
 
 function EqualHashString(const Source, Target: String): boolean;
-function Decrypt(const S: AnsiString; Key: Word): AnsiString;
-function Encrypt(const S: AnsiString; Key: Word): AnsiString;
+function LocalDecrypt(const S: AnsiString; Key: Word): AnsiString;
+function LocalEncrypt(const S: AnsiString; Key: Word): AnsiString;
 
 implementation
 
 Uses
     System.Types,
-    System.Classes,
+    System.Hash,
+    System.Math,
     System.UITypes,
     System.StrUtils,
-    System.Hash,
-    System.Variants;
-
+    System.Variants,
+    WinApi.Windows;
 
 const
   C1 = 75465;
@@ -107,7 +108,7 @@ begin
   end
 end;
 
-function Decrypt(const S: AnsiString; Key: Word): AnsiString;
+function LocalDecrypt(const S: AnsiString; Key: Word): AnsiString;
 begin
   Result := InternalDecrypt(PreProcess(S), Key)
 end;
@@ -160,13 +161,11 @@ begin
   end
 end;
 
-function Encrypt(const S: AnsiString; Key: Word): AnsiString;
+function LocalEncrypt(const S: AnsiString; Key: Word): AnsiString;
 begin
   Result := PostProcess(InternalEncrypt(S, Key))
 end;
 
 end.
-
-
 
 

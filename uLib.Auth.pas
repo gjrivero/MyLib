@@ -16,13 +16,15 @@ Const
 
 Type
    TUserWebAuthenticate = class
+     function GetAction(Const mPath, sPath: String): Integer; virtual;
      function GetUser(const user, shash: String): String; virtual;
      function GetDeveloper(const ApiKey: String): TJSONObject; virtual;
-     function OtherActions(const method: string; var aJSON: String): boolean; virtual;
+     function OtherActions( action: Integer;
+                            const method: string;
+                            var aJSON: String): boolean; virtual;
 
      procedure SetDataSession(aJSON: String); virtual;
-     procedure CommonAuth( aActions: TIntegerSet;
-                           const aUser, aPassword: string;
+     procedure CommonAuth( const aMainPath, aUser, aPassword: string;
                            UserRoles: TStrings;
                            var aResp: String);
 
@@ -37,7 +39,6 @@ Type
      Method,
      Apikey,
      Dev_Key_Name: string;
-     function GetAction(sPath: String): Integer;
      function ValidateDeveloper( var errorMsg: String): Integer;
      function ActionLogin( const sHASH: String;
                             var aJSON: String;
@@ -83,22 +84,25 @@ begin
   result:='';
 end;
 
-function TUserWebAuthenticate.OtherActions(const method: string; var aJSON: String): boolean;
+function TUserWebAuthenticate.OtherActions( action: Integer;
+                                            const method: string;
+                                            var aJSON: String): boolean;
 begin
   result:=false;
 end;
 
-function TUserWebAuthenticate.GetAction(sPath: String): Integer;
+function TUserWebAuthenticate.GetAction(Const mPath, sPath: String): Integer;
 begin
   result:=ACT_NO_VALID;
-  if sPath='login' then
-     result:=ACT_LOGIN
-  else
-     if sPath='signup' then
-        result:=ACT_SIGNUP
-  else
-     if sPath='validate' then
-        result:=ACT_VALIDATE;
+  if (GetStr(Base_Url,2,'/')=mPath) then
+     if sPath='login' then
+        result:=ACT_LOGIN
+     else
+        if sPath='signup' then
+           result:=ACT_SIGNUP
+     else
+        if sPath='validate' then
+           result:=ACT_VALIDATE;
 end;
 
 procedure TUserWebAuthenticate.SetDataSession(aJSON: String);
@@ -175,8 +179,7 @@ begin
      end;
 end;
 
-procedure TUserWebAuthenticate.CommonAuth( aActions: TIntegerSet;
-                                           const aUser, aPassword: string;
+procedure TUserWebAuthenticate.CommonAuth( const aMainPath, aUser, aPassword: string;
                                            UserRoles: TStrings;
                                            var aResp: String);
 Var
@@ -192,10 +195,10 @@ Var
 begin
   Valid:=False;
   errorMsg:='Invalid invocation!';
-  action:=GetAction(Method);
+  action:=GetAction(aMainPath,Method);
   if action=ACT_NO_VALID then
      Exit;
-  Valid:=Action In aActions;
+  Valid:=true;
   //---------------------------------
   User:=aUser;
   loginID:=0;
@@ -228,7 +231,7 @@ begin
            End;
          end;
        else
-         valid:=OtherActions(Method,aJSON);
+         valid:=OtherActions(Action, Method,aJSON);
      end;
   if Valid then
      Case Action Of
@@ -263,7 +266,7 @@ Var
    I: Integer;
 begin
   Method:=LowerCase(GetStr(Request.PathInfo,3,'/'));
-  Base_Url:=Request.PathInfo;
+  Base_Url:=LowerCase(Request.PathInfo);
   dev_key_name:=devKey;
   aHeaders:=TStringList.Create;
   Try

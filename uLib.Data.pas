@@ -1225,7 +1225,6 @@ begin
      begin
        ProgDataPath:=ExtractFilePath(paramstr(0));
      end;
-  writeln(ProgDataPath);
   if Not DirectoryExists(ProgDataPath) then
      begin
        ForceDirectories(ProgDataPath);

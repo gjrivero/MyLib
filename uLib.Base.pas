@@ -97,6 +97,7 @@ Procedure StrRemove(var sJSON: String; const FieldName: String);
 Procedure SetJSON(JSON: TJSONObject; const FieldName: String; Value: TJSONValue); Overload;
 Procedure SetJSON(JSON: TJSONObject; const FieldName, Value: String); Overload;
 Procedure SetJSON(var sJSON: String; const FieldName, Value: String); Overload;
+Procedure SetJSON(var sJSON: String; const FieldName: String; Value: TJSONValue); Overload;
 
 Procedure SetInt(FT: TDataSet; const FieldName: String; Value: Integer); Overload;
 Procedure SetInt(FT: TDataSet; const FieldName: String; Const Value: String); Overload;
@@ -1340,6 +1341,19 @@ begin
      begin
        JSON.RemovePair(fieldName);
        JSON.AddPair(fieldName,TJSONObject.ParseJSONValue(TEncoding.UTF8.GetBytes(Value), 0) as TJSONValue);
+       sJSON:=JSON.ToString;
+       FreeAndNil(JSON);
+     end;
+end;
+
+Procedure SetJSON(var sJSON: String; const FieldName: String; Value: TJSONValue); Overload;
+var JSON: TJSONObject;
+begin
+  JSON:=CreateTJSONObject(sJSON);
+  if JSON<>Nil then
+     begin
+       JSON.RemovePair(fieldName);
+       JSON.AddPair(fieldName,Value);
        sJSON:=JSON.ToString;
        FreeAndNil(JSON);
      end;
