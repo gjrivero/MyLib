@@ -22,7 +22,6 @@ Type
      function OtherActions( action: Integer;
                             const method: string;
                             var aJSON: String): boolean; virtual;
-
      procedure SetDataSession(aJSON: String); virtual;
      procedure CommonAuth( const aMainPath, aUser, aPassword: string;
                            UserRoles: TStrings;
@@ -40,10 +39,10 @@ Type
      Apikey,
      Dev_Key_Name: string;
      function ValidateDeveloper( var errorMsg: String): Integer;
-     function ActionLogin( const sHASH: String;
-                            var aJSON: String;
-                            var loginID: Integer): boolean;
-     function ActionSignUp(const sHASH, sRole: String; var aJSON: String): boolean;
+     function ActionSignUp( const sUser, sPassword, sRole: String;
+                            var aJSON: String): Boolean;
+     function ActionLogin( const sUser, sPassword: String;
+                           var aJSON: String): Boolean;
    public
    end;
 
@@ -150,11 +149,11 @@ begin
      end;
 end;
 
-function TUserWebAuthenticate.ActionSignUp( const sHASH, sRole: String;
+function TUserWebAuthenticate.ActionSignUp( const sUser, sPassword, sRole: String;
                                             var aJSON: String): Boolean;
 begin
   SetStr(aJSON,'userlogin',user);
-  SetStr(aJSON,'passwd',sHash);
+  SetStr(aJSON,'passwd',sPassword);
   SetStr(aJSON,'role',sRole);
   SetStr(aJSON,'firstname', GetStr(JSONBody,'firstName'));
   SetStr(aJSON,'lastname', GetStr(JSONBody,'lastName'));
@@ -163,20 +162,12 @@ begin
   result:=true;
 end;
 
-function TUserWebAuthenticate.ActionLogin( const sHASH: String;
-                                             var aJSON: String;
-                                             var loginID: Integer): Boolean;
+function TUserWebAuthenticate.ActionLogin( const sUser, sPassword: String;
+                                             var aJSON: String): Boolean;
 begin
   result:=false;
-  aJSON:=GetUser(User,sHash);
-  if Not aJSON.IsEmpty then
-     begin
-       loginID:=GetInt(aJSON,'userID');
-       result:=
-          (GetInt(aJSON,'success')=1) And
-          //(GetInt(aJSON,'verified')=1) And
-          (GetInt(aJSON,'active')=1);
-     end;
+  aJSON:=GetUser(sUser, sPassword);
+  result:=(GetInt(aJSON,'success')=1);
 end;
 
 procedure TUserWebAuthenticate.CommonAuth( const aMainPath, aUser, aPassword: string;
@@ -185,12 +176,10 @@ procedure TUserWebAuthenticate.CommonAuth( const aMainPath, aUser, aPassword: st
 Var
    aJSON,
    sRole,
-   sHash,
    errorMsg: string;
    Action,
    loginID,
    developID: Integer;
-   StringHash: THashSHA2;
    Valid: Boolean;
 begin
   Valid:=False;
@@ -215,14 +204,12 @@ begin
        ACT_SIGNUP,
        ACT_LOGIN:
          Begin
-           StringHash := THashSHA2.Create();
-           sHash:=StringHash.GetHashString(LowerCase(User)+':'+aPassword);
            Case Action Of
             ACT_SIGNUP:
-               Valid:=ActionSignUp(sHash,sRole,aJSON);
+               Valid:=ActionSignUp(aUser, aPassword, sRole, aJSON);
             ACT_LOGIN:
                begin
-                 Valid:=ActionLogin(sHash,aJSON,loginID);
+                 Valid:=ActionLogin(aUser, aPassword, aJSON);
                  if Not Valid then
                     begin
                       errorMsg:='User not active or doesn''t exists!';

@@ -1290,6 +1290,7 @@ procedure LoadConnectSettings( Const ProgDataPath: String;
                                var ASettingsFileName,
                                    ActiveCustomer: String);
 var
+   sRole,
    JSON,
    aJSON: String;
    tJSON: TJSONArray;
@@ -1327,8 +1328,6 @@ begin
   // -----------------------------------------------
   aJSON:= GetStr(JSON,'clients');
   tJSON:=CreateTJSONArray(AJSON);
-  if pCustConnection=Nil then
-     pCustConnection:=TStringList.Create;
   ActiveCustomer:='';
   for I := 0 to tJSON.count-1 do
     begin
@@ -1341,6 +1340,8 @@ begin
                 ADatabaseServer.Values['Database']:=GetStr(ActiveCustomer,'database');
               end;
          End;
+      if pCustConnection=Nil then
+         pCustConnection:=TStringList.Create;
       pCustConnection.add(sCust);
     end;
   // -----------------------------------------------
