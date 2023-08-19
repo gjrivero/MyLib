@@ -9,21 +9,21 @@ uses
     System.classes;
 
 Const
-   ACT_NO_VALID = 0;
+   ACT_DEFAULT  = 0;
    ACT_SIGNUP   = 1;
    ACT_LOGIN    = 2;
    ACT_VALIDATE = 3;
 
 Type
    TUserWebAuthenticate = class
-     function GetAction(Const mPath, sPath: String): Integer; virtual;
-     function GetUser(const user, shash: String): String; virtual;
+     function GetUser(const sJSON: String): String; virtual;
      function GetDeveloper(const ApiKey: String): TJSONObject; virtual;
      function OtherActions( action: Integer;
                             const method: string;
                             var aJSON: String): boolean; virtual;
+     procedure GetAction(Const mPath, sPath: String; var action: Integer); virtual;
      procedure SetDataSession(aJSON: String); virtual;
-     procedure CommonAuth( const aMainPath, aUser, aPassword: string;
+     procedure CommonAuth( const aMainPath, sJSON: string;
                            UserRoles: TStrings;
                            var aResp: String);
 
@@ -39,9 +39,9 @@ Type
      Apikey,
      Dev_Key_Name: string;
      function ValidateDeveloper( var errorMsg: String): Integer;
-     function ActionSignUp( const sUser, sPassword, sRole: String;
+     function ActionSignUp( const sJSON: String;
                             var aJSON: String): Boolean;
-     function ActionLogin( const sUser, sPassword: String;
+     function ActionLogin( const sJSON: String;
                            var aJSON: String): Boolean;
    public
    end;
@@ -78,7 +78,7 @@ begin
   result:=Nil;
 end;
 
-function TUserWebAuthenticate.GetUser(const user, shash: String): String;
+function TUserWebAuthenticate.GetUser(const sJSON: String): String;
 begin
   result:='';
 end;
@@ -90,18 +90,18 @@ begin
   result:=false;
 end;
 
-function TUserWebAuthenticate.GetAction(Const mPath, sPath: String): Integer;
+procedure TUserWebAuthenticate.GetAction(Const mPath, sPath: String; var action: Integer);
 begin
-  result:=ACT_NO_VALID;
+  action:=ACT_DEFAULT;
   if (GetStr(Base_Url,2,'/')=mPath) then
      if sPath='login' then
-        result:=ACT_LOGIN
+        action:=ACT_LOGIN
      else
         if sPath='signup' then
-           result:=ACT_SIGNUP
+           action:=ACT_SIGNUP
      else
         if sPath='validate' then
-           result:=ACT_VALIDATE;
+           action:=ACT_VALIDATE;
 end;
 
 procedure TUserWebAuthenticate.SetDataSession(aJSON: String);
@@ -111,10 +111,9 @@ begin
   Session := TDSSessionManager.GetThreadSession;
 
   Session.PutData('DevelopID', GetStr(aJSON,'developID'));
-  Session.PutData('AppID', GetStr(aJSON,'appType'));
+  Session.PutData('AppID', GetStr(aJSON,'appID'));
   Session.PutData('LoginID', GetStr(aJSON,'userID'));
-  Session.PutData('User', GetStr(aJSON,'userlogin'));
-  Session.PutData('Passwd', GetStr(aJSON,'passwd'));
+  Session.PutData('User', GetStr(aJSON,'user'));
   Session.PutData('FirstName', GetStr(aJSON,'firstname'));
   Session.PutData('LastName', GetStr(aJSON,'lastname'));
   Session.PutData('Role', GetStr(aJSON,'role'));
@@ -149,12 +148,13 @@ begin
      end;
 end;
 
-function TUserWebAuthenticate.ActionSignUp( const sUser, sPassword, sRole: String;
+function TUserWebAuthenticate.ActionSignUp( const sJSON: String;
                                             var aJSON: String): Boolean;
 begin
-  SetStr(aJSON,'userlogin',user);
-  SetStr(aJSON,'passwd',sPassword);
-  SetStr(aJSON,'role',sRole);
+  SetStr(aJSON,'user',GetStr(sJSON,'user'));
+  SetStr(aJSON,'password',GetStr(sJSON,'password'));
+  SetStr(aJSON,'role',GetStr(sJSON,'role'));
+
   SetStr(aJSON,'firstname', GetStr(JSONBody,'firstName'));
   SetStr(aJSON,'lastname', GetStr(JSONBody,'lastName'));
   SetStr(aJSON,'email', GetStr(JSONBody,'email'));
@@ -162,15 +162,14 @@ begin
   result:=true;
 end;
 
-function TUserWebAuthenticate.ActionLogin( const sUser, sPassword: String;
+function TUserWebAuthenticate.ActionLogin( const sJSON: String;
                                              var aJSON: String): Boolean;
 begin
-  result:=false;
-  aJSON:=GetUser(sUser, sPassword);
+  aJSON:=GetUser(sJSON);
   result:=(GetInt(aJSON,'success')=1);
 end;
 
-procedure TUserWebAuthenticate.CommonAuth( const aMainPath, aUser, aPassword: string;
+procedure TUserWebAuthenticate.CommonAuth( const aMainPath, sJSON: string;
                                            UserRoles: TStrings;
                                            var aResp: String);
 Var
@@ -184,12 +183,14 @@ Var
 begin
   Valid:=False;
   errorMsg:='Invalid invocation!';
-  action:=GetAction(aMainPath,Method);
-  if action=ACT_NO_VALID then
+  GetAction(aMainPath,Method,Action);
+  aResp:='';
+  SetInt(aResp,'valid',0);
+  if action=ACT_DEFAULT then
      Exit;
   Valid:=true;
   //---------------------------------
-  User:=aUser;
+  User:=GetStr(sJSON,'user');
   loginID:=0;
   developID:=0;
   sRole:=GetStr(JSONBody,'role');
@@ -206,10 +207,10 @@ begin
          Begin
            Case Action Of
             ACT_SIGNUP:
-               Valid:=ActionSignUp(aUser, aPassword, sRole, aJSON);
+               Valid:=ActionSignUp(sJSON, aJSON);
             ACT_LOGIN:
                begin
-                 Valid:=ActionLogin(aUser, aPassword, aJSON);
+                 Valid:=ActionLogin(sJSON, aJSON);
                  if Not Valid then
                     begin
                       errorMsg:='User not active or doesn''t exists!';
@@ -218,24 +219,23 @@ begin
            End;
          end;
        else
-         valid:=OtherActions(Action, Method,aJSON);
+         valid:=OtherActions(Action,Method,aJSON);
      end;
   if Valid then
-     Case Action Of
-      ACT_SIGNUP,
-      ACT_LOGIN:
+     begin
+       Case Action Of
+        ACT_SIGNUP,
+        ACT_LOGIN:
          begin
-           SetStr(aJSON,'userlogin',user);
            SetInt(aJSON,'userID', loginID);
-           SetInt(aJSON,'developID',developID);
-           SetInt(aJSON,'appType',GetInt(JSONBody,'appID'));
-
-           SetDataSession(aJSON);
-
-           StrRemove(aJSON,'passwd');
-           sRole:=GetStr(aJSON,'role');
-           UserRoles.Add(sRole);
+           StrRemove(aJSON,'password');
          end;
+       end;
+       SetInt(aJSON,'developID',developID);
+       SetInt(aJSON,'appID',GetInt(JSONBody,'appID'));
+       sRole:=GetStr(aJSON,'role');
+       UserRoles.Add(sRole);
+       SetDataSession(aJSON);
      end;
   aResp:='';
   SetBool(aResp,'valid',Valid);

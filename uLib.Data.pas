@@ -1344,6 +1344,23 @@ begin
          pCustConnection:=TStringList.Create;
       pCustConnection.add(sCust);
     end;
+  if (ActiveCustomer='') then
+     begin
+       sRole:='';
+       Case RDBMSKind of
+        TFDRDBMSKinds.PostgreSQL: sRole:='public';
+        TFDRDBMSKinds.Oracle: sRole:='';
+        TFDRDBMSKinds.MSSQL: sRole:='dbo';
+        TFDRDBMSKinds.SQLite: sRole:='';
+       End;
+       ActiveCustomer:='';
+       SetStr(ActiveCustomer,'database',ADatabaseServer.Values['Database']);
+       SetStr(ActiveCustomer,'branch','');
+       SetStr(ActiveCustomer,'role',sRole);
+       Setbool(ActiveCustomer,'active',false);
+       Setbool(ActiveCustomer,'default',false);
+     end;
+
   // -----------------------------------------------
 end;
 
