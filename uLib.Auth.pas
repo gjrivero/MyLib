@@ -9,6 +9,17 @@ uses
     System.classes;
 
 Const
+   SS_DEVELOPID = 'developID';
+   SS_APPID = 'appID';
+   SS_LOGINID = 'loginID';
+   SS_CUSTID = 'custID';
+   SS_USER = 'user';
+   SS_FIRSTNAME = 'firstName';
+   SS_LASTNAME = 'lastName';
+   SS_EMAIL = 'email';
+   SS_PHONE = 'phone';
+   SS_ROLE = 'role';
+
    ACT_DEFAULT  = 0;
    ACT_SIGNUP   = 1;
    ACT_LOGIN    = 2;
@@ -54,6 +65,7 @@ Uses
     System.Generics.Collections,
 
     IdHTTPHeaderInfo,
+    IdCustomHTTPServer,
     IdHTTPWebBrokerBridge,
     Datasnap.DSSession,
 
@@ -61,6 +73,9 @@ Uses
     uLib.Data,
     uLib.Helpers
     ;
+
+const
+    SS_PASSWORD = 'password';
 
 type
   TIdHTTPAppRequestHelper = class helper for TIdHTTPAppRequest
@@ -93,7 +108,8 @@ end;
 procedure TUserWebAuthenticate.GetAction(Const mPath, sPath: String; var action: Integer);
 begin
   action:=ACT_DEFAULT;
-  if (GetStr(Base_Url,2,'/')=mPath) then
+  // /api/main/login
+  if (GetStr(Base_Url,3,'/')=mPath) then
      if sPath='login' then
         action:=ACT_LOGIN
      else
@@ -110,14 +126,16 @@ var
 begin
   Session := TDSSessionManager.GetThreadSession;
 
-  Session.PutData('DevelopID', GetStr(aJSON,'developID'));
-  Session.PutData('AppID', GetStr(aJSON,'appID'));
-  Session.PutData('LoginID', GetStr(aJSON,'userID'));
-  Session.PutData('User', GetStr(aJSON,'user'));
-  Session.PutData('FirstName', GetStr(aJSON,'firstname'));
-  Session.PutData('LastName', GetStr(aJSON,'lastname'));
-  Session.PutData('Role', GetStr(aJSON,'role'));
-  Session.PutData('CustID', GetStr(aJSON,'custID'));
+  Session.PutData(SS_DEVELOPID, GetStr(aJSON,SS_DEVELOPID));
+  Session.PutData(SS_APPID, GetStr(aJSON,SS_APPID));
+  Session.PutData(SS_LOGINID, GetStr(aJSON,SS_LOGINID));
+  Session.PutData(SS_CUSTID, GetStr(aJSON,SS_CUSTID));
+
+  Session.PutData(SS_FIRSTNAME, GetStr(aJSON,SS_FIRSTNAME));
+  Session.PutData(SS_LASTNAME, GetStr(aJSON,SS_LASTNAME));
+  Session.PutData(SS_EMAIL, GetStr(aJSON,SS_EMAIL));
+  Session.PutData(SS_PHONE, GetStr(aJSON,SS_PHONE));
+  Session.PutData(SS_ROLE, GetStr(aJSON,SS_ROLE));
 end;
 
 function TUserWebAuthenticate.ValidateDeveloper( var errorMsg: String): Integer;
@@ -151,14 +169,14 @@ end;
 function TUserWebAuthenticate.ActionSignUp( const sJSON: String;
                                             var aJSON: String): Boolean;
 begin
-  SetStr(aJSON,'user',GetStr(sJSON,'user'));
-  SetStr(aJSON,'password',GetStr(sJSON,'password'));
-  SetStr(aJSON,'role',GetStr(sJSON,'role'));
+  SetStr(aJSON,SS_USER,GetStr(sJSON,SS_USER));
+  SetStr(aJSON,SS_PASSWORD,GetStr(sJSON,SS_PASSWORD));
+  SetStr(aJSON,SS_FIRSTNAME, GetStr(JSONBody,SS_FIRSTNAME));
+  SetStr(aJSON,SS_LASTNAME, GetStr(JSONBody,SS_LASTNAME));
+  SetStr(aJSON,SS_EMAIL, GetStr(JSONBody,SS_EMAIL));
+  SetStr(aJSON,SS_PHONE, GetStr(JSONBody,SS_PHONE));
+  SetStr(aJSON,SS_ROLE,GetStr(sJSON,SS_ROLE));
 
-  SetStr(aJSON,'firstname', GetStr(JSONBody,'firstName'));
-  SetStr(aJSON,'lastname', GetStr(JSONBody,'lastName'));
-  SetStr(aJSON,'email', GetStr(JSONBody,'email'));
-  SetStr(aJSON,'phone', GetStr(JSONBody,'phone'));
   result:=true;
 end;
 
@@ -190,10 +208,10 @@ begin
      Exit;
   Valid:=true;
   //---------------------------------
-  User:=GetStr(sJSON,'user');
+  User:=GetStr(sJSON,SS_USER);
   loginID:=0;
   developID:=0;
-  sRole:=GetStr(JSONBody,'role');
+  sRole:=GetStr(JSONBody,SS_ROLE);
   if sRole='' then
      sRole:='standard';
   aJSON:='';
@@ -227,13 +245,13 @@ begin
         ACT_SIGNUP,
         ACT_LOGIN:
          begin
-           SetInt(aJSON,'userID', loginID);
-           StrRemove(aJSON,'password');
+           SetInt(aJSON,SS_LOGINID, loginID);
+           StrRemove(aJSON,SS_PASSWORD);
          end;
        end;
-       SetInt(aJSON,'developID',developID);
-       SetInt(aJSON,'appID',GetInt(JSONBody,'appID'));
-       sRole:=GetStr(aJSON,'role');
+       SetInt(aJSON,SS_DEVELOPID,developID);
+       SetInt(aJSON,SS_APPID,GetInt(JSONBody,SS_APPID));
+       sRole:=GetStr(aJSON,SS_ROLE);
        UserRoles.Add(sRole);
        SetDataSession(aJSON);
      end;
@@ -252,8 +270,8 @@ Var
    sHeader: String;
    I: Integer;
 begin
-  Method:=LowerCase(GetStr(Request.PathInfo,3,'/'));
   Base_Url:=LowerCase(Request.PathInfo);
+  Method:=LowerCase(GetStr(Base_Url,4,'/'));
   dev_key_name:=devKey;
   aHeaders:=TStringList.Create;
   Try

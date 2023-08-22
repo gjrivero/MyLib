@@ -39,26 +39,36 @@ uses
 function getQueryCondition(const sCondition: String): String;
 const
    OPERATORS: Array[0..6] Of String=
-      ('>','<','!=','>=','<=','=','#');
+      ('>=','<=','!=','>','<','=','#');
 
-  procedure setCompare(var sWhere: String; aExpr: String; Idx: integer);
+  procedure setCompare(aExpr: String; var sWhere: String );
   var
      aField,
      aValue: String;
+     I: Integer;
   begin
     if aExpr.IsEmpty then
        exit;
-
-    aField:=GetStr(aExpr,1,OPERATORS[Idx]);
-    aValue:=GetStr(aExpr,2,OPERATORS[Idx]);
-    if aValue<>'' then
-       begin
-         if not IsNumeric(aValue) then
-            aValue:=aValue.QuotedString;
-         if Not sWhere.IsEmpty Or (Idx>0) then
-            sWhere:= sWhere+' AND '+
-                    '('+aField.ToLower+OPERATORS[Idx]+aValue+')';
-       end;
+    for I := 0 to High(OPERATORS) do
+      begin
+        var sOp:=OPERATORS[I];
+        var P:=Pos(sOp,aExpr);
+        if (P>0) then
+           begin
+             aField:=Trim(Copy(aExpr,1,P-1));
+             aValue:=Trim(Copy(aExpr,P+Length(sOp),Length(aExpr)));
+             if aValue<>'' then
+                begin
+                  if (aValue.StartsWith('0') or
+                     not IsNumeric(aValue)) And
+                     not aValue.StartsWith('''') then
+                     aValue:=aValue.QuotedString;
+                  sWhere:= sWhere+ifThen(sWhere<>'',' AND ',' ')+
+                           '('+aField.ToLower+sOp+aValue+')';
+                  break;
+                end;
+           end;
+      end;
   end;
 
 Var
@@ -72,9 +82,9 @@ begin
   for i := 0 to Pred(metaData.QueryParams.Count) do
    begin
      aExpr:=metaData.QueryParams[i];
-     setCompare(sWhere,aExpr,I);
+     setCompare(aExpr,sWhere);
    end;
-  Result:=sWhere;
+  Result:=Trim(sWhere);
 end;
 
 function callUpd( Const DBTableName, Context, sCondition: String): TJSONObject;

@@ -90,12 +90,13 @@ Const
 var
   FDM: TFDM;
   RDBMSKind: TFDRDBMSKind;
-  HTTP_PORT: Integer= 8080;
 
   DBMessageResult,
+
+  AHostSettings,
+  ADefConnection,
   ASettingsFileName: String;
 
-  ADefConnection: String;
   ADriverVendor,
   ADatabaseServer,
   ASQLiteSecurity: TStringList;
@@ -537,7 +538,8 @@ begin
      begin
        Session:= TDSSessionManager.GetThreadSession;
        userId:= Session.GetData('loginID');
-       userName:= Trim(Session.GetData('FirstName')+' '+Session.GetData('LastName'));
+       userName:= Trim(Session.GetData('firstName')+' '+Session.GetData('lastName'));
+       if (StrToInteger(userId)>0) then
        Case Cnx.RDBMSKind of
         TFDRDBMSKinds.MYSQL:
           begin
@@ -1244,8 +1246,7 @@ begin
     tJSON:='';
     aJSON:='';
     sJSON:='';
-    SetInt(tJSON,'http_port',HTTP_PORT);
-    SetJSON(aJSON,'host',tJSON);
+    SetJSON(aJSON,'host',AHostSettings);
 
     SetStr(sJSON,'driverId',GetStr(ADefConnection,'driverId'));
     SetStr(sJSON,'server',GetStr(ADefConnection,'server'));
@@ -1305,8 +1306,7 @@ begin
      exit;
   JSON := loadTextfile(ASettingsFileName, false); // Crypted
   // -----------------------------------------------
-  AJSON := GetStr(JSON,'host');
-  HTTP_PORT:=GetInt(AJSON,'http_port');
+  AHostSettings := GetStr(JSON,'host');
   // -----------------------------------------------
   aJSON:=GetStr(JSON,'connection');
   ADefConnection:=aJSON;  // Default Connection
