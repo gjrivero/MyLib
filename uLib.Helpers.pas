@@ -14,10 +14,14 @@ Type
 
   TDataSetHelper = class helper for TDataSet
   public
+    function AsJSONvalue(AReturnNilIfEOF: boolean = false): TJSONValue;
+
     function AsJSONObject(AReturnNilIfEOF: boolean = false): TJSONObject;
     function AsJSONObjectString(AReturnNilIfEOF: boolean = false): string;
-    function AsJSONArray: TJSONArray;
-    function AsJSONArrayString: string;
+
+    function AsJSONArray(AReturnNilIfEOF: boolean = false): TJSONArray;
+    function AsJSONArrayString(AReturnNilIfEOF: boolean = false): string;
+
     function AsStringList(Separator: Char): TStringList;
     procedure LoadFromJSONArray( AJSONArray: TJSONArray); overload;
     procedure LoadFromJSONArray( AJSONArray: TJSONArray;
@@ -211,6 +215,16 @@ begin
   end;
   if ADataSetInstanceOwner then
     FreeAndNil(ADataSet);
+end;
+
+procedure DataSetToJSONvalue(
+             ADataSet: TDataSet;
+             AJSONValue: TJSONValue;
+             ADataSetInstanceOwner: boolean);
+var AJSON: TJSONObject;
+begin
+  DataSetToJSONObject(ADataSet,AJSON,ADataSetInstanceOwner);
+  AJSONValue:=AJSON.AsType<TJSONValue>;
 end;
 
 procedure DataSetToString(
@@ -452,6 +466,22 @@ begin
   end;
 end;
 
+function TDataSetHelper.AsJSONvalue(AReturnNilIfEOF: boolean = false): TJSONValue;
+var
+  JObj: TJSONObject;
+begin
+  JObj := TJSONObject.Create;
+  try
+    DataSetToJSONObject(Self, JObj, false);
+    if AReturnNilIfEOF and (JObj.Count = 0) then
+      FreeAndNil(JObj);
+    Result := JObj.AsType<TJSONValue>;
+  except
+    FreeAndNil(JObj);
+    raise;
+  end;
+end;
+
 function TDataSetHelper.AsJSONObjectString(AReturnNilIfEOF: boolean = false): String;
 Var JSON: TJSONObject;
 begin
@@ -463,7 +493,7 @@ begin
   end;
 end;
 
-function TDataSetHelper.AsJSONArray: TJSONArray;
+function TDataSetHelper.AsJSONArray(AReturnNilIfEOF: boolean = false): TJSONArray;
 var
   JArr: TJSONArray;
 begin
@@ -478,7 +508,7 @@ begin
   end;
 end;
 
-function TDataSetHelper.AsJSONArrayString: string;
+function TDataSetHelper.AsJSONArrayString(AReturnNilIfEOF: boolean = false): string;
 var
   Arr: TJSONArray;
 begin

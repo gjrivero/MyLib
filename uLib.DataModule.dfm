@@ -1,9 +1,10 @@
-object FDM: TFDM
+object dmMain: TdmMain
   OnCreate = DataModuleCreate
   OnDestroy = DataModuleDestroy
-  Height = 303
-  Width = 386
+  Height = 204
+  Width = 389
   object Cnx: TFDConnection
+    ResourceOptions.AssignedValues = [rvParamCreate, rvMacroCreate, rvMacroExpand, rvParamExpand, rvEscapeExpand, rvKeepConnection]
     LoginPrompt = False
     BeforeConnect = CnxBeforeConnect
     Left = 48
@@ -18,15 +19,6 @@ object FDM: TFDM
     Connection = Cnx
     Left = 308
     Top = 24
-  end
-  object SQLiteDriver: TFDPhysSQLiteDriverLink
-    Left = 32
-    Top = 184
-  end
-  object SQLiteSecurity: TFDSQLiteSecurity
-    DriverLink = SQLiteDriver
-    Left = 120
-    Top = 184
   end
   object Qry: TFDQuery
     Connection = Cnx

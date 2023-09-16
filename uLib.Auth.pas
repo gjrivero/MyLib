@@ -9,16 +9,12 @@ uses
     System.classes;
 
 Const
-   SS_DEVELOPID = 'developID';
-   SS_APPID = 'appID';
-   SS_LOGINID = 'loginID';
-   SS_CUSTID = 'custID';
    SS_USER = 'user';
-   SS_FIRSTNAME = 'firstName';
-   SS_LASTNAME = 'lastName';
-   SS_EMAIL = 'email';
-   SS_PHONE = 'phone';
    SS_ROLE = 'role';
+   SS_PASSWORD = 'password';
+   SS_VALID = 'valid';
+   SS_ERROR = 'error';
+   SS_MESSAGE = 'message';
 
    ACT_DEFAULT  = 0;
    ACT_SIGNUP   = 1;
@@ -27,13 +23,11 @@ Const
 
 Type
    TUserWebAuthenticate = class
-     function GetUser(const sJSON: String): String; virtual;
-     function GetDeveloper(const ApiKey: String): TJSONObject; virtual;
-     function OtherActions( action: Integer;
-                            const method: string;
-                            var aJSON: String): boolean; virtual;
+     function ActionLogin( const sJSON: String): string;  virtual;
+     function ActionSignUp( const sJSON: String): string;  virtual;
+     function OtherActions( action: Integer; const method: string): string; virtual;
      procedure GetAction(Const mPath, sPath: String; var action: Integer); virtual;
-     procedure SetDataSession(aJSON: String); virtual;
+     procedure SetDataSession(const sJSON: String); virtual;
      procedure CommonAuth( const aMainPath, sJSON: string;
                            UserRoles: TStrings;
                            var aResp: String);
@@ -41,19 +35,15 @@ Type
      constructor Create( Request: TWebRequest;
                          const devKey: string='');
    protected
-     Base_Url,
-     JSONBody: String;
-
-   private
-     User,
-     Method,
+     AUser,
+     APassword,
      Apikey,
-     Dev_Key_Name: string;
-     function ValidateDeveloper( var errorMsg: String): Integer;
-     function ActionSignUp( const sJSON: String;
-                            var aJSON: String): Boolean;
-     function ActionLogin( const sJSON: String;
-                           var aJSON: String): Boolean;
+     Host_Url,
+     Base_Url,
+     Method,
+     JSONBody,
+     DEV_KEY_NAME: string;
+   private
    public
    end;
 
@@ -74,8 +64,9 @@ Uses
     uLib.Helpers
     ;
 
-const
-    SS_PASSWORD = 'password';
+
+var
+   MethodIndex: Integer;
 
 type
   TIdHTTPAppRequestHelper = class helper for TIdHTTPAppRequest
@@ -88,28 +79,16 @@ begin
   Result := FRequestInfo;
 end;
 
-function TUserWebAuthenticate.GetDeveloper(const ApiKey: String): TJSONObject;
+function TUserWebAuthenticate.OtherActions( action: Integer; const method: string): string;
 begin
-  result:=Nil;
-end;
-
-function TUserWebAuthenticate.GetUser(const sJSON: String): String;
-begin
-  result:='';
-end;
-
-function TUserWebAuthenticate.OtherActions( action: Integer;
-                                            const method: string;
-                                            var aJSON: String): boolean;
-begin
-  result:=false;
+  result:='{}';
 end;
 
 procedure TUserWebAuthenticate.GetAction(Const mPath, sPath: String; var action: Integer);
 begin
   action:=ACT_DEFAULT;
   // /api/main/login
-  if (GetStr(Base_Url,3,'/')=mPath) then
+  if (GetStr(Base_Url,MethodIndex-1,'/')=mPath) then
      if sPath='login' then
         action:=ACT_LOGIN
      else
@@ -120,71 +99,19 @@ begin
            action:=ACT_VALIDATE;
 end;
 
-procedure TUserWebAuthenticate.SetDataSession(aJSON: String);
-var
-   Session: TDSSession;
+procedure TUserWebAuthenticate.SetDataSession(const sJSON: String);
 begin
-  Session := TDSSessionManager.GetThreadSession;
-
-  Session.PutData(SS_DEVELOPID, GetStr(aJSON,SS_DEVELOPID));
-  Session.PutData(SS_APPID, GetStr(aJSON,SS_APPID));
-  Session.PutData(SS_LOGINID, GetStr(aJSON,SS_LOGINID));
-  Session.PutData(SS_CUSTID, GetStr(aJSON,SS_CUSTID));
-
-  Session.PutData(SS_FIRSTNAME, GetStr(aJSON,SS_FIRSTNAME));
-  Session.PutData(SS_LASTNAME, GetStr(aJSON,SS_LASTNAME));
-  Session.PutData(SS_EMAIL, GetStr(aJSON,SS_EMAIL));
-  Session.PutData(SS_PHONE, GetStr(aJSON,SS_PHONE));
-  Session.PutData(SS_ROLE, GetStr(aJSON,SS_ROLE));
+  {}
 end;
 
-function TUserWebAuthenticate.ValidateDeveloper( var errorMsg: String): Integer;
-var
-   aJSON: TJSONObject;
-   valid: Boolean;
+function TUserWebAuthenticate.ActionSignUp( const sJSON: String): string;
 begin
-  result:=0; //-1;
-  If (dev_key_name<>'') Then
-     begin
-       valid:=false;
-       aJSON:=GetDeveloper(ApiKey);
-       if (aJSON<>Nil) then
-          begin
-            result:=GetInt(aJSON,'id');
-            valid:=(GetInt(aJSON,'id')>0) And
-              (GetInt(aJSON,'success')=1) And
-              (GetInt(aJSON,'active')=1);
-            aJSON.DisposeOf;
-          end;
-(*
-       if Not Valid then
-          begin
-            errorMsg:='Developer API-Key not active or doesn''t exists!';
-            exit(-1);
-          end;
-*)
-     end;
+  result:='';
 end;
 
-function TUserWebAuthenticate.ActionSignUp( const sJSON: String;
-                                            var aJSON: String): Boolean;
+function TUserWebAuthenticate.ActionLogin( const sJSON: String): string;
 begin
-  SetStr(aJSON,SS_USER,GetStr(sJSON,SS_USER));
-  SetStr(aJSON,SS_PASSWORD,GetStr(sJSON,SS_PASSWORD));
-  SetStr(aJSON,SS_FIRSTNAME, GetStr(JSONBody,SS_FIRSTNAME));
-  SetStr(aJSON,SS_LASTNAME, GetStr(JSONBody,SS_LASTNAME));
-  SetStr(aJSON,SS_EMAIL, GetStr(JSONBody,SS_EMAIL));
-  SetStr(aJSON,SS_PHONE, GetStr(JSONBody,SS_PHONE));
-  SetStr(aJSON,SS_ROLE,GetStr(sJSON,SS_ROLE));
-
-  result:=true;
-end;
-
-function TUserWebAuthenticate.ActionLogin( const sJSON: String;
-                                             var aJSON: String): Boolean;
-begin
-  aJSON:=GetUser(sJSON);
-  result:=(GetInt(aJSON,'success')=1);
+  result:='';
 end;
 
 procedure TUserWebAuthenticate.CommonAuth( const aMainPath, sJSON: string;
@@ -192,73 +119,44 @@ procedure TUserWebAuthenticate.CommonAuth( const aMainPath, sJSON: string;
                                            var aResp: String);
 Var
    aJSON,
-   sRole,
    errorMsg: string;
-   Action,
-   loginID,
-   developID: Integer;
+   Action: Integer;
    Valid: Boolean;
 begin
   Valid:=False;
   errorMsg:='Invalid invocation!';
   GetAction(aMainPath,Method,Action);
   aResp:='';
-  SetInt(aResp,'valid',0);
+  SetBool(aResp,SS_VALID,false);
+  SetBool(aJSON,SS_VALID,false);
   if action=ACT_DEFAULT then
      Exit;
-  Valid:=true;
   //---------------------------------
-  User:=GetStr(sJSON,SS_USER);
-  loginID:=0;
-  developID:=0;
-  sRole:=GetStr(JSONBody,SS_ROLE);
-  if sRole='' then
-     sRole:='standard';
-  aJSON:='';
+  AUser:=GetStr(sJSON,SS_USER);
+  APassword:=GetStr(sJSON,SS_PASSWORD);
   //---------------------------------
-  if (Action In [ACT_SIGNUP,ACT_LOGIN]) then
-     developID:=validateDeveloper(errorMsg);
-  if (developID>-1) then
-     case Action of
-       ACT_SIGNUP,
+  case Action of
+   ACT_SIGNUP,
+   ACT_LOGIN:
+     Case Action Of
+       ACT_SIGNUP:
+          aJSON:=ActionSignUp(sJSON);
        ACT_LOGIN:
-         Begin
-           Case Action Of
-            ACT_SIGNUP:
-               Valid:=ActionSignUp(sJSON, aJSON);
-            ACT_LOGIN:
-               begin
-                 Valid:=ActionLogin(sJSON, aJSON);
-                 if Not Valid then
-                    begin
-                      errorMsg:='User not active or doesn''t exists!';
-                    end;
-               end;
-           End;
-         end;
-       else
-         valid:=OtherActions(Action,Method,aJSON);
-     end;
+          aJSON:=ActionLogin(sJSON);
+     End;
+   else
+     aJSON:=OtherActions(Action,Method);
+  end;
+  valid:=GetBool(aJSON,SS_VALID);
   if Valid then
      begin
-       Case Action Of
-        ACT_SIGNUP,
-        ACT_LOGIN:
-         begin
-           SetInt(aJSON,SS_LOGINID, loginID);
-           StrRemove(aJSON,SS_PASSWORD);
-         end;
-       end;
-       SetInt(aJSON,SS_DEVELOPID,developID);
-       SetInt(aJSON,SS_APPID,GetInt(JSONBody,SS_APPID));
-       sRole:=GetStr(aJSON,SS_ROLE);
+       var sRole:=GetStr(aJSON,SS_ROLE);
+       if sRole='' then
+          sRole:='standard';
        UserRoles.Add(sRole);
        SetDataSession(aJSON);
      end;
-  aResp:='';
-  SetBool(aResp,'valid',Valid);
-  SetJSON(aResp,'data',aJSON);
-  SetStr(aResp,'message',errorMsg);
+  aResp:=aJSON;
 end;
 
 constructor TUserWebAuthenticate.Create( Request: TWebRequest;
@@ -270,9 +168,14 @@ Var
    sHeader: String;
    I: Integer;
 begin
+  Host_Url:=LowerCase(Request.Host);
   Base_Url:=LowerCase(Request.PathInfo);
-  Method:=LowerCase(GetStr(Base_Url,4,'/'));
-  dev_key_name:=devKey;
+  MethodIndex:=3;
+  if Base_Url.Contains('/api') then
+     MethodIndex:=4;
+
+  Method:=LowerCase(GetStr(Base_Url,MethodIndex,'/'));
+  DEV_KEY_NAME:=devKey;
   aHeaders:=TStringList.Create;
   Try
    with TIdHTTPAppRequest(Request).GetRequestInfo Do

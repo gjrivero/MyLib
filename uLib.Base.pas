@@ -19,7 +19,6 @@ uses
    ,FireDAC.Stan.Param;
 
 
-
 Const
   CHDIV  = #1;
   DATE_FORMAT = 'YYYY-MM-DD';
@@ -31,7 +30,13 @@ Const
 Type
    TRandAttributes= (rdAllChar, rdAlpha, rdNumber, rdEspecial );
    TDateTimeMode = (dtNone, dtBegin, dtEnd);
+var
 
+   ApplicationPath,
+
+   AppLogsPath,
+   AppConfigFileName,
+   AppLoggerFilename: String;
 
 Function  FToStrSQL(Value: Double): String; overload;
 Function  FToStrSQL(const Value: String): String; overload;
@@ -82,6 +87,8 @@ Function  GetDate(const sJSON, fieldname: String): TDateTime; Overload;
 
 function GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
 function GetBool(const sJSON: String; const FieldName: string): boolean; Overload;
+
+function GetApplicationPath(LocalPath: Boolean): String;
 
 Procedure SetBool(OJSON: TJSONObject; const FieldName: string; Value: boolean); Overload;
 Procedure SetBool(var sJSON: String; const FieldName: string; Value: boolean); Overload;
@@ -139,6 +146,8 @@ procedure SetFlds( var sLine: String;
 procedure SetFldsJSON( var sJSON: String;
                    const fields: array of string;
                    const values: array of const);
+procedure SaveLogFile(const sMessage: String);
+
 Function  GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
 Function  SetDefaultLine(MaxFields: Integer; Cdiv: Char=ChDiv): String;
 
@@ -184,31 +193,35 @@ procedure DecompressFile(const filename: String);
 function CreateTJSONValue(sJSON: String): TJSONValue;
 function CreateTJSONObject(sJSON: String): TJSONObject;
 function CreateTJSONArray(sJSON: String): TJSONArray;
-function JSONArrayToObject(aJSON: TJSONArray; Index: Integer=0): TJSONObject;
+function JSONArrayToObject(aJSON: TJSONArray; Index: Integer=0): TJSONObject; overload;
+function JSONArrayToObject(aJSON: String; Index: Integer=0): String; overload;
 
 function SetJSONResponse( iStatus: Integer;
-                          const sMessage, aJSON: String): TJSONObject; overload;
+                          const sMessage: string;
+                          aJSON: String=''): TJSONObject; overload;
 function SetJSONResponse( iStatus: Integer;
-                          const sMessage: string; aJSON: TJSONValue): TJSONObject; overload
+                          const sMessage: string;
+                          aJSON: TJSONValue=Nil): TJSONObject; overload;
 
 procedure GetFieldsValues( JSON: TJSONObject;
-                           var sFields, sValues, sSetVal: string); overload;
+                           var sFields, sValues, sSetVal, sCondition: string;
+                           update: boolean);  overload;
 procedure GetFieldsValues( sJSON: String;
-                           var sFields, sValues, sSetVal: string); overload;
+                           var sFields, sValues, sSetVal, sCondition: string;
+                           update: boolean);   overload;
 procedure GetFieldsValues( pParams: TFDParams;
                            var sFields, sValues, sSetVal: string); overload;
 function RandString( ALength: Integer;
                      attr: TRandAttributes=rdAllChar): String;
 
-function saveTextfile(const pFileName: String;
-                            JSON: TJSONObject;
-                            Crypted: Boolean): Integer; Overload;
+procedure saveTofile(const pFileName: String;
+                    const SourceText, CipherKey, IV: RawByteString;
+                          Crypted: Boolean);
 
-function saveTextfile(const pFileName: String;
-                            sTEXT: String;
-                            Crypted: Boolean): Integer; Overload;
-function loadTextfile(const pFileName: String;
-                            Crypted: Boolean): String;
+function loadFromfile(const pFileName: String;
+                      const CipherKey, IV: RawByteString;
+                            Crypted: Boolean): RawByteString;
+
 function ValidateEmail(const emailAddress: string): Boolean;
 function IsInternetConnection: Boolean;
 procedure SendSSLMail( Connection: TStringList;
@@ -235,9 +248,8 @@ uses
    ,IdEMailAddress
    ,IdAttachmentFile
    ,IdMessageBuilder
-   ,IdExplicitTLSClientServerBase;
-
-
+   ,IdExplicitTLSClientServerBase
+   ,uLib.Crypt;
 
 function VersionStr(nuVerMayor, nuVerMenor, nuVerRelease: Integer): String;
 Begin
@@ -343,14 +355,16 @@ begin
 end;
 
 function SetJSONResponse( iStatus: Integer;
-                          const sMessage, aJSON: String): TJSONObject;
+                          const sMessage: string;
+                          aJSON: String): TJSONObject;
 var
   tJSON: String;
 begin
   tJSON:='';
   SetInt(tJSON,'status',iStatus);
   SetStr(tJSON,'message',sMessage);
-  SetJSON(tJSON,'response',aJSON);
+  if aJSON<>'' then
+     SetJSON(tJSON,'response',aJSON);
   result:=CreateTJSONObject(tJSON);
 end;
 
@@ -394,8 +408,19 @@ Begin
      Result:=TJSONObject.Create;
 End;
 
+function JSONArrayToObject(aJSON: String; Index: Integer=0): String;
+var JArray: TJSONArray;
+Begin
+  JArray:=CreateTJSONArray(aJSON);
+  if Assigned(JArray) And (JArray.Count>0) then
+     Result:=(JArray[Index] As TJSONObject).ToString
+  else
+     Result:='{}';
+End;
+
 procedure GetFieldsValues( JSON: TJSONObject;
-                           var sFields, sValues, sSetVal: string);
+                           var sFields, sValues, sSetVal, sCondition: string;
+                           update: boolean);
 Var L: integer;
     field,
     value: String;
@@ -403,27 +428,40 @@ begin
   sValues:='';
   sFields:='';
   sSetVal:='';
+  sCondition:='';
   for L := 0 to JSON.Count-1 do
    begin
      field:=JSON.Pairs[L].JsonString.Value;
      Value:=JSON.Pairs[L].JsonValue.ToString.Replace('"','''');
-     sFields:=sFields+','+field;
-     sValues:=sValues+','+value;
-     sSetVal:=sSetVal+','+field+'='+Value;
+     if update and (CompareText(field,'id')=0) then
+        begin
+          sCondition:=field+'='+value;
+        end
+     else
+        begin
+          sFields:=sFields+','+field;
+          sValues:=sValues+','+value;
+          sSetVal:=sSetVal+','+field+'='+Value;
+        end;
    End;
   System.Delete(sValues,1,1);
   System.delete(sFields,1,1);
   System.delete(sSetVal,1,1);
+  if update and sCondition.IsEmpty then
+     begin
+       sCondition:=getStr(sFields,1,',')+'='+GetStr(sValues,1,',');
+     end;
 end;
 
 procedure GetFieldsValues( sJSON: String;
-                           var sFields, sValues, sSetVal: string);
+                           var sFields, sValues, sSetVal, sCondition: string;
+                           update: boolean);
 Var JSON: TJSONObject;
 begin
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
-       GetFieldsValues(JSON,sFields,sValues,sSetVal);
+       GetFieldsValues(JSON,sFields,sValues,sSetVal,sCondition,update);
        JSON.Destroy;
      end;
 end;
@@ -446,51 +484,52 @@ begin
   System.delete(sSetVal,1,1);
 end;
 
-function saveTextfile(const pFileName: String;
-                             sTEXT: String;
-                             Crypted: Boolean): Integer;
-var
-  lst: TStringList;
-begin
-  lst:=TStringList.create;
-  try
-    if Crypted then
-       begin
-         sTEXT:=sTEXT;
-       end;
-    lst.text:=sTEXT; // Aquí se inserta #$D#$A
-    lst.Savetofile(pfileName,TEncoding.UTF8);
-    Result:=0;   //DB_SUCCESSFUL;
-  except
-    Result:=-5; // DB_WRITE_FILE_ERROR;
-  end;
-  lst.Destroy;
-end;
 
-function saveTextfile(const pFileName: String;
-                             JSON: TJSONObject;
-                             Crypted: Boolean): Integer; Overload;
-begin
-  result:=saveTextfile(pFileName,JSON.ToString,Crypted);
-end;
-
-function loadTextfile(const pFileName: String;
-                            Crypted: Boolean): String;
+procedure saveTofile(const pFileName: String;
+                    const SourceText, CipherKey, IV: RawByteString;
+                          Crypted: Boolean);
 var
-  sTEXT: String;
-  lst: TStringList;
+  Input: RawByteString;
+  MS: TStringStream;
 begin
-  lst:=TStringList.create;
+  if SourceText='' then
+     exit;
+  Input:=SourceText;
+  if Crypted then
+     begin
+       Input:=Encrypt(SourceText, CipherKey, IV);
+     end;
+  MS:=TStringStream.Create(Input);
   try
-    lst.LoadFromFile(pfileName,TEncoding.UTF8);
-    sTEXT:=ReplaceStr(lst.TEXT,#$D#$A,''); // Quitar primero #$D#$A
-    if Crypted then
-       begin
-         sTEXT:=sTEXT;
-       end;
-    result:=sTEXT;
+    MS.SaveToFile(pFileName);
   finally
-    lst.Destroy;
+    MS.Destroy;
+  end;
+end;
+
+function loadFromfile(const pFileName: String;
+                      const CipherKey, IV: RawByteString;
+                            Crypted: Boolean): RawByteString;
+var
+  Input: RawByteString;
+  MS: TStringStream;
+begin
+  if not FileExists(pFileName) then
+     begin
+       result:='';
+       exit;
+     end;
+  MS:=TStringStream.Create;
+  try
+    MS.LoadFromFile(pfileName);
+    Input:=MS.DataString;
+    if Crypted then
+       begin
+         Input:=DeCrypt(MS.DataString, CipherKey, IV);
+       end;
+    result:=Input;
+  finally
+    MS.Destroy;
   end;
 end;
 
@@ -1394,7 +1433,7 @@ begin
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
-       Ok:=JSON.GetValue<Boolean>(fieldName);
+       Ok:=GetBool(JSON,FieldName);
        FreeAndNil(JSON);
      end;
   result:=Ok;
@@ -1769,10 +1808,8 @@ begin
      sStream:= TStringStream.Create(sJSON,TEncoding.UTF8);
   Try
     case pMethod of
-     rmPUT:
-        Result:=nReq.Put(sURL,sStream,nil,LHeader);
-     rmPOST:
-        Result:=nReq.Post(sURL,sStream,nil,LHeader);
+     rmPUT:    Result:=nReq.Put(sURL,sStream,nil,LHeader);
+     rmPOST:   Result:=nReq.Post(sURL,sStream,nil,LHeader);
      rmGET:    Result:=nReq.Get(sURL,nil,LHeader);
      rmDELETE: Result:=nReq.Delete(sURL,nil,LHeader);
     end;
@@ -1910,5 +1947,62 @@ begin
   RegEx := TRegex.Create('^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]*[a-zA-Z0-9]+$');
   Result := RegEx.Match(emailAddress).Success;
 end;
+
+procedure SaveLogFile(const sMessage: String);
+Var
+  FLog: TextFile;
+  sJSON: String;
+begin
+  //-------------------------------------------
+  AssignFile(FLog, AppLogsPath + AppLoggerFilename);
+  if Not FileExists(AppLogsPath  + AppLoggerFilename) then
+    Rewrite(FLog)
+  else
+    Append(FLog);
+  //--------------------------------------------------
+  sJSON:='';
+  SetDate(sJSON,'date',Now());
+  if (sMessage[1] in ['{','[']) then
+     SetJSON(sJSON,'data',sMessage)
+  else
+     SetStr(sJSON,'data',sMessage);
+  Writeln(FLog,sJSON);
+  CloseFile(FLog);
+end;
+
+function GetApplicationPath(LocalPath: Boolean): String;
+var
+   lPath,
+   AppName,
+   AppStationName: String;
+begin
+  AppStationName := GetEnvironmentVariable('COMPUTERNAME');
+  AppName := ChangeFileExt(ExtractFileName(paramstr(0)), ''); // Ohne Endung
+{$IF DEFINED (Linux) or DEFINED (MACOS)}
+  lPath := IncludeTrailingPathDelimiter(GetHomePath) + '.config/' +
+                   AppName + PathDelim;
+{$ENDIF}
+{$IFDEF MSWINDOWS}
+  lPath := IncludeTrailingPathDelimiter(GetHomePath)+AppName+PathDelim;
+{$ENDIF}
+{$IF DEFINED(iOS) or DEFINED(ANDROID)}
+  lPath := TPath.GetDocumentsPath+PathDelim;
+{$ENDIF}
+  if LocalPath then
+     begin
+       lPath :=ExtractFilePath(paramstr(0));
+     end;
+  result:=lPath;
+end;
+
+
+initialization
+  ApplicationPath:=GetApplicationPath(false);
+  AppLogsPath:=ApplicationPath+PathDelim+'LogFiles'+PathDelim;
+
+  AppConfigFileName:=ChangeFileExt(ExtractFileName(ParamStr(0)),'.cnf');
+  AppLoggerFilename:=ChangeFileExt(ExtractFileName(ParamStr(0)),'.log');
+
+finalization
 
 end.

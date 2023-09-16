@@ -3,27 +3,63 @@ unit uLib.Crypt;
 interface
 
 uses
+  IdHMAC,
+  DECCipherBase,
+  REST.Types,
   System.Classes,
-  System.SysUtils;
+  System.Types,
+  System.SysUtils,
+  System.JSON,
+  System.Generics.Collections;
+
+type
+  TIdHMACClass = class of TIdHMAC;
+
 
 function EqualHashString(const Source, Target: String): boolean;
-function LocalDecrypt(const S: AnsiString; Key: Word): AnsiString;
-function LocalEncrypt(const S: AnsiString; Key: Word): AnsiString;
+function EncryptRequest(Const sRequest: RawByteString;
+                              CipherKey, IV: TBytes;
+                              cmMode: TCipherMode;
+                              aEncoding: Boolean=false): RawByteString;
+function DeCryptRequest(Const sRequest: RawByteString;
+                              CipherKey, IV: TBytes;
+                              cmMode: TCipherMode;
+                              aEncoding: Boolean=false): RawByteString;
+function Encrypt(const SourceText, CipherKey, IV: RawByteString): RawByteString;
+function DeCrypt(const SourceText, CipherKey, IV: RawByteString): RawByteString;
+procedure EncryptFile( const fileSource, fileTarget: String;
+                       const CipherKey, IV: RawByteString);
+procedure DeCryptFile( const fileSource, fileTarget: String;
+                       const CipherKey, IV: RawByteString);
+
+function PBKDF2( const Password: RawByteString;
+                 const Salt: TBytes;
+                 const IterationsCount: Integer;
+                 const KeyLengthInBytes: Integer;
+                 PRFC: TIdHMACClass = nil): TBytes;
 
 implementation
 
+{%CLASSGROUP 'System.Classes.TPersistent'}
+
 Uses
-    System.Types,
     System.Hash,
     System.Math,
     System.UITypes,
     System.StrUtils,
     System.Variants,
-    WinApi.Windows;
+    System.NetEncoding,
 
-const
-  C1 = 75465;
-  C2 = 67349;
+    uLib.Base,
+    DECTypes,
+    DECCiphers,
+    DECCipherModes,
+
+    IdGlobal,
+    IdHMACSHA1,
+    IdCoderMIME,
+
+    WinApi.Windows;
 
 
 function EqualHashString(const Source, Target: String): boolean;
@@ -38,132 +74,259 @@ begin
   result:=SameText(sHash,Target);
 end;
 
-function Decode(const S: AnsiString): AnsiString;
-const
-  Map: array[AnsiChar] of Byte = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 62, 0, 0, 0, 63, 52, 53,
-    54, 55, 56, 57, 58, 59, 60, 61, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2,
-    3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-    20, 21, 22, 23, 24, 25, 0, 0, 0, 0, 0, 0, 26, 27, 28, 29, 30,
-    31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
-    46, 47, 48, 49, 50, 51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0);
+function Encrypt(const SourceText, CipherKey, IV: RawByteString): RawByteString;
 var
-  I: LongInt;
+  Cipher: TCipher_AES128;
+  Input,
+  Output: TBytes;
 begin
-  case Length(S) of
-    2:
+  Cipher := TCipher_AES128.Create;
+  try
+    Cipher.Init(CipherKey, IV);
+    Cipher.Mode := cmCBCx;
+    Input := System.SysUtils.BytesOf(SourceText);
+    Output := Cipher.EncodeBytes(Input);
+    result := TNetEncoding.Base64.EncodeBytesToString(OutPut);
+    Cipher.Done;
+  finally
+    Cipher.Free;
+  end;
+end;
+
+function DeCrypt(const SourceText, CipherKey, IV: RawByteString): RawByteString;
+var
+  Cipher: TCipher_AES128;
+  Input,
+  Output: TBytes;
+begin
+  Cipher := TCipher_AES128.Create;
+  try
+    Cipher.Init(CipherKey, IV);
+    Cipher.Mode := cmCBCx;
+    Input:=TNetEncoding.Base64.DecodeStringToBytes(SourceText);
+    Output := Cipher.DecodeBytes(Input);
+    result:= System.SysUtils.StringOf(Output);
+
+    Cipher.Done;
+  finally
+    Cipher.Free;
+  end;
+end;
+
+
+procedure EncryptFile( const fileSource, fileTarget: String;
+                       const CipherKey, IV: RawByteString);
+var
+  Cipher: TCipher_AES128;
+  Input: TBytes;
+  i: Integer;
+begin
+  Cipher := TCipher_AES128.Create;
+  try
+    Cipher.Init(CipherKey, IV);
+    Cipher.Mode := cmCBCx;
+    // Encrypt
+    Cipher.EncodeFile( fileSource, fileTarget);
+    // clean up inside the cipher instance, which also removes the key from RAM
+    Cipher.Done;
+  finally
+    Cipher.Free;
+  end;
+end;
+
+procedure DeCryptFile( const fileSource, fileTarget: String;
+                       const CipherKey, IV: RawByteString);
+var
+  Cipher: TCipher_AES128;
+begin
+  Cipher := TCipher_AES128.Create;
+  try
+      Cipher.Init(CipherKey, IV);
+      Cipher.Mode := cmCBCx;
+      Cipher.DecodeFile(fileSource, fileTarget);
+      // clean up inside the cipher instance, which also removes the key from RAM
+      Cipher.Done;
+  finally
+    Cipher.Free;
+  end;
+end;
+
+
+function EncryptRequest(Const sRequest: RawByteString;
+                              CipherKey, IV: TBytes;
+                              cmMode: TCipherMode;
+                              aEncoding: Boolean=false): RawByteString;
+Const
+   BLOCK_SIZE = 128;
+   BSIZE = (BLOCK_SIZE div 8);
+var
+  aReq,
+  Output: TBytes;
+  I,l,Pad: Integer;
+begin
+  //-----------------------------
+  result:=sRequest;
+  if Trim(sRequest)='' then
+     exit;
+  if aEncoding then
+     begin
+       SetLength(aReq,length(sRequest)*2);
+       FillChar(aReq[0],length(sRequest)*2,0);
+       l:=0;
+       for I := 1 to length(sRequest) do
+        begin
+          aReq[l]:=byte(sRequest[i]);
+          inc(l,2);
+        end;
+     end
+  else
+     begin
+       SetLength(aReq,length(sRequest));
+       Move(sRequest[1],aReq[0],length(sRequest));
+     end;
+  Pad := BSIZE - (Length(aReq) mod BSIZE);
+  for i := 1 to Pad do
+    aReq := aReq+[Pad];
+  //-----------------------------
+  Output := [];
+  var Cipher:=TCipher_AES.Create;
+  try
+    try
+      Cipher.Mode := cmMode;
+      Cipher.Init(CipherKey, IV);
+      Output := Cipher.Encodebytes(aReq);
+      Cipher.Done;
+    except
+      on E: Exception do
+         Raise Exception.Create(E.ClassName+ ': '+ E.Message);
+    end;
+  finally
+    Cipher.Free;
+  end;
+  result:= TNetEncoding.Base64.EncodeBytesToString(OutPut);
+end;
+
+function DeCryptRequest(Const sRequest: RawByteString;
+                              CipherKey, IV: TBytes;
+                              cmMode: TCipherMode;
+                              aEncoding: Boolean=false): RawByteString;
+var
+  aReq,
+  Output: TBytes;
+  sHash: RawByteString;
+  I,L,
+  Pad,T: Integer;
+begin
+  result:=sRequest;
+  if Trim(sRequest)='' then
+     exit;
+  //-----------------------------
+  aReq:=TNetEncoding.Base64.DecodeStringToBytes(sRequest);
+  //-----------------------------
+  Output := [];
+  var Cipher:=TCipher_AES.Create;
+  try
+    try
+      Cipher.Mode := cmMode;
+      Cipher.Init(CipherKey, IV);
+      Output := Cipher.DecodeBytes(aReq);
+      T:=Length(Output);
+      pad:=Output[T-1];
+      while (Output[T-1]=pad) do
+       begin
+         Dec(T);
+         SetLength(Output,T);
+       end;
+      if aEncoding then
+         begin
+           L:=0;
+           SetLength(aReq,T div 2);
+           for I := 0 to T-1 do
+             if (I mod 2)=0 then
+             begin
+               aReq[L]:=OutPut[i];
+               inc(L);
+             end;
+           OutPut:=aReq;
+         end;
+      Cipher.Done;
+    except
+      on E: Exception do
+         Raise Exception.Create(E.ClassName+ ': '+ E.Message);
+    end;
+  finally
+    Cipher.Free;
+  end;
+  result:= StringOf(OutPut);
+end;
+
+function PBKDF2( const Password: RawByteString;
+                 const Salt: TBytes;
+                 const IterationsCount: Integer;
+                 const KeyLengthInBytes: Integer;
+                 PRFC: TIdHMACClass = nil): TBytes;
+var
+  PRF: TIdHMAC;
+  D: Integer;
+  I: Int32;
+  F: TIdBytes;
+  U: TIdBytes;
+  J: Integer;
+  T: TIdBytes;
+  lPassword, lSalt: TIdBytes;
+
+  function _ConcatenateBytes(const _B1: TIdBytes; const _B2: TIdBytes): TIdBytes; inline;
+  begin
+    SetLength(Result, Length(_B1) + Length(_B2));
+    if Length(_B1) > 0 then
+      Move(_B1[low(_B1)], Result[low(Result)], Length(_B1));
+    if Length(_B2) > 0 then
+      Move(_B2[low(_B2)], Result[low(Result) + Length(_B1)], Length(_B2));
+  end;
+
+  function _INT_32_BE(const _I: Int32): TIdBytes; inline;
+  begin
+    Result := TIdBytes.Create(_I shr 24, _I shr 16, _I shr 8, _I);
+  end;
+
+  procedure _XorBytes(var _B1: TIdBytes; const _B2: TIdBytes); inline;
+  var
+    _I: Integer;
+  begin
+    for _I := low(_B1) to high(_B1) do
+      _B1[_I] := _B1[_I] xor _B2[_I];
+  end;
+
+begin
+  if not Assigned(PRFC) then
+    PRFC := TIdHMACSHA1;
+  PRF := PRFC.Create;
+  try
+    {
+      Conversion TBytes -> TidBytes as Remy Lebeau says
+      https://stackoverflow.com/a/18854367/6825479
+    }
+    SetLength(lPassword,Length(Password));
+    move(Password[1],lPassword[0],length(Password));
+    lSalt := TIdBytes(Salt);
+
+    D := Ceil(KeyLengthInBytes / PRF.HashSize);
+    PRF.Key := lPassword;
+    for I := 1 to D do
+    begin
+      F := PRF.HashValue(_ConcatenateBytes(lSalt, _INT_32_BE(I)));
+      U := Copy(F);
+      for J := 2 to IterationsCount do
       begin
-        I := Map[S[1]] + (Map[S[2]] shl 6);
-        SetLength(Result, 1);
-        Move(I, Result[1], Length(Result))
+        U := PRF.HashValue(U);
+        _XorBytes(F, U);
       end;
-    3:
-      begin
-        I := Map[S[1]] + (Map[S[2]] shl 6) + (Map[S[3]] shl 12);
-        SetLength(Result, 2);
-        Move(I, Result[1], Length(Result))
-      end;
-    4:
-      begin
-        I := Map[S[1]] + (Map[S[2]] shl 6) + (Map[S[3]] shl 12) +
-          (Map[S[4]] shl 18);
-        SetLength(Result, 3);
-        Move(I, Result[1], Length(Result))
-      end
-  end
-end;
-
-function PreProcess(const S: AnsiString): AnsiString;
-var
-  SS: AnsiString;
-begin
-  SS := S;
-  Result := '';
-  while (SS<>'') do
-  begin
-    Result := Result + Decode(Copy(SS, 1, 4));
-    Delete(SS, 1, 4)
-  end
-end;
-
-function InternalDecrypt(const S: AnsiString; Key: Word): AnsiString;
-var
-  I: Word;
-  Seed: Word;
-begin
-  Result := S;
-  Seed := Key;
-  for I := 1 to Length(Result) do
-  begin
-    Result[I] := AnsiChar(Byte(Result[I]) xor (Seed shr 8));
-    Seed := (Byte(S[I]) + Seed) * Word(C1) + Word(C2)
-  end
-end;
-
-function LocalDecrypt(const S: AnsiString; Key: Word): AnsiString;
-begin
-  Result := InternalDecrypt(PreProcess(S), Key)
-end;
-
-function Encode(const S: AnsiString): AnsiString;
-const
-  Map: array[0..63] of Char = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' +
-    'abcdefghijklmnopqrstuvwxyz0123456789+/';
-var
-  I: LongInt;
-begin
-  I := 0;
-  Move(S[1], I, Length(S));
-  case Length(S) of
-    1:
-      Result := Map[I mod 64] + Map[(I shr 6) mod 64];
-    2:
-      Result := Map[I mod 64] + Map[(I shr 6) mod 64] +
-        Map[(I shr 12) mod 64];
-    3:
-      Result := Map[I mod 64] + Map[(I shr 6) mod 64] +
-        Map[(I shr 12) mod 64] + Map[(I shr 18) mod 64]
-  end
-end;
-
-function PostProcess(const S: AnsiString): AnsiString;
-var
-  SS: AnsiString;
-begin
-  SS := S;
-  Result := '';
-  while SS <> '' do
-  begin
-    Result := Result + Encode(Copy(SS, 1, 3));
-    Delete(SS, 1, 3)
-  end
-end;
-
-function InternalEncrypt(const S: AnsiString; Key: Word): AnsiString;
-var
-  I: Word;
-  Seed: Word;
-begin
-  Result := S;
-  Seed := Key;
-  for I := 1 to Length(Result) do
-  begin
-    Result[I] := AnsiChar(Byte(Result[I]) xor (Seed shr 8));
-    Seed := (Byte(Result[I]) + Seed) * Word(C1) + Word(C2)
-  end
-end;
-
-function LocalEncrypt(const S: AnsiString; Key: Word): AnsiString;
-begin
-  Result := PostProcess(InternalEncrypt(S, Key))
+      T := _ConcatenateBytes(T, F);
+    end;
+    Result := TBytes(Copy(T, low(T), KeyLengthInBytes));
+  finally
+    PRF.Free;
+  end;
 end;
 
 end.
