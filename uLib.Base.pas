@@ -38,6 +38,7 @@ var
    AppConfigFileName,
    AppLoggerFilename: String;
 
+function  JSONFilter(sJSON: String): String;
 Function  FToStrSQL(Value: Double): String; overload;
 Function  FToStrSQL(const Value: String): String; overload;
 Function  StrToReal(St: String): Double;
@@ -186,6 +187,7 @@ function LoadResourceHTML( const RName: PCHAR; RType: PCHAR = RT_RCDATA ): Strin
 function StringToHex(const S: String): String;
 function HexToString(const S: String): String;
 function StreamToString(Stream: TStream; Encoding: TEncoding=nil): string;
+function CountOccurrences(SubStr, S: string): Integer;
 
 procedure Compressfile(const filename: String);
 procedure DecompressFile(const filename: String);
@@ -193,7 +195,7 @@ procedure DecompressFile(const filename: String);
 function CreateTJSONValue(sJSON: String): TJSONValue;
 function CreateTJSONObject(sJSON: String): TJSONObject;
 function CreateTJSONArray(sJSON: String): TJSONArray;
-function JSONArrayToObject(aJSON: TJSONArray; Index: Integer=0): TJSONObject; overload;
+function JSONArrayToObject(aJSON: TJSONValue; Index: Integer=0): TJSONObject; overload;
 function JSONArrayToObject(aJSON: String; Index: Integer=0): String; overload;
 
 function SetJSONResponse( iStatus: Integer;
@@ -238,6 +240,7 @@ uses
    ,System.DateUtils
    ,System.StrUtils
    ,System.NetEncoding
+   ,FireDAC.Stan.Intf
    ,IdSSLOpenSSL
    ,IdHTTP
    ,IdSMTP
@@ -249,6 +252,7 @@ uses
    ,IdAttachmentFile
    ,IdMessageBuilder
    ,IdExplicitTLSClientServerBase
+   ,uLib.DataModule
    ,uLib.Crypt;
 
 function VersionStr(nuVerMayor, nuVerMenor, nuVerRelease: Integer): String;
@@ -294,6 +298,16 @@ begin
     result[C1] := ASequence[Random(Length(ASequence))+1];
 end;
 
+function CountOccurrences(SubStr, S: string): Integer;
+var
+  I: Integer;
+begin
+  Result := 0;
+  for I := 1 to Length(S) do
+    if S[I] = SubStr then
+      Inc(Result);
+end;
+
 function AmpFilter(sVal: String): String;
 Var S: String;
 begin
@@ -305,6 +319,25 @@ begin
        Delete(S,Pos('`',S),1);
      end;
   Result:=S;
+end;
+
+function JSONFilter(sJSON: String): String;
+begin
+  // \b  Backspace (ascii code 08)
+  sJSON:=ReplaceStr(sJSON,#08,'\b');
+  // \f  Form feed (ascii code 0C)
+  sJSON:=ReplaceStr(sJSON,#12,'\f');
+  // \n  New line
+  sJSON:=ReplaceStr(sJSON,#10,'\n');
+  // \r  Carriage return
+  sJSON:=ReplaceStr(sJSON,#13,'\r');
+  // \t  Tab
+  sJSON:=ReplaceStr(sJSON,#09,'\t');
+  // \\  Backslash character
+  sJSON:=ReplaceStr(sJSON,'\','\\');
+  // \"  Double quote
+  sJSON:=ReplaceStr(sJSON,'"','\"');
+  result:=sJSON;
 end;
 
 function AssignVal(const AVarRec: TVarRec): String; Overload;
@@ -400,10 +433,15 @@ Begin
   Result:= TJSONObject.ParseJSONValue(TEncoding.UTF8.GetBytes(sJSON), 0) as TJSONArray;
 End;
 
-function JSONArrayToObject(aJSON: TJSONArray; Index: Integer=0): TJSONObject;
+function JSONArrayToObject(aJSON: TJSONValue; Index: Integer=0): TJSONObject;
 Begin
-  if Assigned(AJSON) And (AJSON.Count>0) then
-     Result:=aJSON[Index] As TJSONObject
+  if Assigned(AJSON) Then
+     begin
+       If (AJSON Is TJSONArray) And (TJSONArray(AJSON).Count>0) then
+          Result:=TJSONArray(AJSON)[Index] As TJSONObject
+       else
+          Result:=(AJSON As TJSONObject)
+     end
   else
      Result:=TJSONObject.Create;
 End;
@@ -431,8 +469,23 @@ begin
   sCondition:='';
   for L := 0 to JSON.Count-1 do
    begin
-     field:=JSON.Pairs[L].JsonString.Value;
-     Value:=JSON.Pairs[L].JsonValue.ToString.Replace('"','''');
+     field:=JSON.Pairs[L].JsonString.Value.ToLower;
+     Value:=JSON.Pairs[L].JsonValue.ToString;
+     if Value.StartsWith('"') then
+        begin
+          delete(Value,1,1);
+          delete(Value,Length(Value),1);
+          Value:='N'+Value.QuotedString;
+        end
+     else
+        if Not Value.IsEmpty and (Value[1] In ['[','{']) then
+           Case RDBMSKind of
+              TFDRDBMSKinds.MSSQL:
+                Value:='N'+Value.QuotedString;
+              else
+                 Value:=Value.QuotedString;
+           End;
+
      if update and (CompareText(field,'id')=0) then
         begin
           sCondition:=field+'='+value;
@@ -875,6 +928,7 @@ end;
 Function DeleteLastChar(const S: String; ch: Char): String;
 Var St: String;
 Begin
+  St:=S;
   While Not St.IsEmpty And (St[Length(St)]=Ch) Do
    Delete(St,Length(St),1);
   Result:=St;
@@ -1379,7 +1433,7 @@ begin
   if JSON<>Nil then
      begin
        JSON.RemovePair(fieldName);
-       JSON.AddPair(fieldName,TJSONObject.ParseJSONValue(TEncoding.UTF8.GetBytes(Value), 0) as TJSONValue);
+       JSON.AddPair(fieldName,TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(Value), 0) as TJSONValue);
        sJSON:=JSON.ToString;
        FreeAndNil(JSON);
      end;
@@ -1960,12 +2014,8 @@ begin
   else
     Append(FLog);
   //--------------------------------------------------
-  sJSON:='';
-  SetDate(sJSON,'date',Now());
-  if (sMessage[1] in ['{','[']) then
-     SetJSON(sJSON,'data',sMessage)
-  else
-     SetStr(sJSON,'data',sMessage);
+  sJSON:='{"date":"'+DateTimeStr(Now())+'"';
+  sJSON:=sJSON+',"message":"'+trim(ReplaceText(sMessage,#13#10,' '))+'"}';
   Writeln(FLog,sJSON);
   CloseFile(FLog);
 end;

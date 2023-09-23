@@ -123,16 +123,17 @@ procedure processSQL(sqlCmd: TStringList; aSave: boolean=false);
 implementation
 
 Uses
+    uLib.DataModule,
     FireDAC.Stan.Intf;
 
 { TTableDefintion }
 
 Const
-    PR_AUDIT_TRACE = 'sp_audit_trace';
-    PR_LAST_UPDATE = 'sp_last_update';
-    PR_NEXT_VALUE = 'sp_next_value';
-    PR_NEXT_SEQUENCE = 'sp_sequence_value';
-    PR_ENTP_SEQUENCE ='sp_entp_sequence';
+    PR_AUDIT_TRACE   = 'aud_trace';
+    PR_LAST_UPDATE   = 'aud_date_update';
+    PR_NEXT_VALUE    = 'aud_next_value';
+    PR_NEXT_SEQUENCE = 'aud_sequence';
+    PR_ENTP_SEQUENCE = 'aud_ent_seq';
 
 
 procedure processSQL(sqlCmd: TStringList; aSave: boolean=false);

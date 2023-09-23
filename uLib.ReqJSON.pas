@@ -9,12 +9,17 @@ uses
   ,FireDAC.Stan.Param
   ;
 
-function callGet( const sTblName: String;
+function callGetArray( const sTblName: String;
                         sfields: String='*';
                         sCondition: String='';
-                        sOrder: string=''): TJSONArray; overload;
-function callAdd( const DBTableName, Context: String): TJSONObject;
-function callUpd( const DBTableName, Context: String; sCondition: String=''): TJSONObject;
+                        sOrder: string=''): TJSONArray;
+function callGetObject( const sTblName: String;
+                        sfields: String='*';
+                        sCondition: String=''): TJSONObject;
+function callAdd( const DBTableName, Context: String): TJSONObject; overload;
+function callAdd( const DBTableName: String; Context: TJSONObject): TJSONObject; overload;
+function callUpd( const DBTableName, Context: String; sCondition: String=''): TJSONObject; overload;
+function callUpd( const DBTableName: String; Context: TJSONObject; sCondition: String=''): TJSONObject; overload;
 function callDel( const DBTableName, sCondition: String): TJSONObject;
 
 
@@ -46,6 +51,11 @@ begin
 
 end;
 
+function callUpd( const DBTableName: String; Context: TJSONObject; sCondition: String=''): TJSONObject;
+begin
+  result:=callUpd(DBTableName, Context.ToString, sCondition);
+end;
+
 function callAdd( const DBTableName, Context: String): TJSONObject;
 Var aJSON: TJSONObject;
 begin
@@ -58,6 +68,11 @@ begin
      result:=SetJSONResponse( -1,
                              GetStr(aJSON,'errormsg'),
                               aJSON);
+end;
+
+function callAdd( const DBTableName: String; Context: TJSONObject): TJSONObject;
+begin
+  result:=callAdd(DBTableName,Context.ToString);
 end;
 
 function callDel( const DBTableName, sCondition: String): TJSONObject;
@@ -78,10 +93,10 @@ begin
 end;
 
 
-function callGet( const sTblName: String;
-                  sfields: String='*';
-                  sCondition: String='';
-                  sOrder: string=''): TJSONArray;
+function callGetArray( const sTblName: String;
+                        sfields: String='*';
+                        sCondition: String='';
+                        sOrder: string=''): TJSONArray;
 var
   sQry,
   sWhere: String;
@@ -101,12 +116,11 @@ begin
 end;
 
 
-function callGetOne( const sTblName: String;
-                           sfields: String;
-                           sCondition: String): TJSONObject;
+function callGetObject( const sTblName: String;
+                        sfields: String='*';
+                        sCondition: String=''): TJSONObject;
 begin
-
-  result:=JSONArrayToObject(CallGet(sTblName,sfields,sCondition));
+  result:=JSONArrayToObject(callGetArray(sTblName,sfields,sCondition));
 end;
 
 

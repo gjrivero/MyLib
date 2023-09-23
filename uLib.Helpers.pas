@@ -156,7 +156,7 @@ var
 begin
   for I := 0 to ADataSet.FieldCount - 1 do
   begin
-    key := ADataSet.Fields[I].FieldName;
+    key := ADataSet.Fields[I].FieldName.ToLower;
     if ADataSet.Fields[I].IsNull then
     begin
       AJSONObject.AddPair(key,TJSONNull.Create);
@@ -195,7 +195,7 @@ begin
           try
             TBlobField(ADataSet.Fields[I]).SaveToStream(MS);
             MS.Position := 0;
-            SS := TStringStream.Create('', TEncoding.ASCII);
+            SS := TStringStream.Create('', TEncoding.ANSI);
             try
               EncodeStream(MS, SS);
               SS.Position := 0;
@@ -267,7 +267,7 @@ begin
           try
             TBlobField(ADataSet.Fields[I]).SaveToStream(MS);
             MS.Position := 0;
-            SS := TStringStream.Create('', TEncoding.ASCII);
+            SS := TStringStream.Create('', TEncoding.ANSI);
             try
               EncodeStream(MS, SS);
               SS.Position := 0;
@@ -357,7 +357,7 @@ begin
           MS := TMemoryStream.Create;
           try
             SS := TStringStream.Create(AJSONObject.GetValue(key).Value,
-              TEncoding.ASCII);
+              TEncoding.ANSI);
             try
               DecodeStream(SS, MS);
               MS.Position := 0;
@@ -577,7 +577,7 @@ var
   JV: TJSONArray;
 begin
   JV := TJSONArray.Create.ParseJSONValue(
-           TEncoding.ASCII.GetBytes(AJSONArrayString),0) as TJSONArray;
+           TEncoding.ANSI.GetBytes(AJSONArrayString),0) as TJSONArray;
   try
     if JV.Count>0 then
       LoadFromJSONArray(JV, AIgnoredFields)

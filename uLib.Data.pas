@@ -62,14 +62,16 @@ function UpdData( const dbTableName: String;
 
 function DelData( const dbTableName, Condition: String): TJSONObject;
 
-function ExecCmd( const sCommands: String; pParams: TFDParams=Nil): Integer; Overload;
-function ExecCmd( sCommands: TStrings; pParams: TFDParams=Nil): Integer; Overload;
+function ExecCmd( const sCommands: String; pParams: TFDParams=Nil; aCommit: Boolean=true): Integer; Overload;
+function ExecCmd( sCommands: TStrings; pParams: TFDParams=Nil; aCommit: Boolean=true): Integer; Overload;
 function ExecCmd( const sCommands: String;
                   const fldNames: Array of String;
-                  const fldValues: Array of const): Integer; Overload;
+                  const fldValues: Array of const;
+                  aCommit: Boolean=true): Integer; Overload;
 function ExecCmd( sCommands: TStrings;
                   const fldNames: Array of String;
-                  const fldValues: Array of const): Integer; Overload;
+                  const fldValues: Array of const;
+                  aCommit: Boolean=true): Integer; Overload;
 
 function ExecTransact( cSQL: TStringList;
                        sDecl: TStringList=nil;
@@ -84,6 +86,7 @@ function SetFDParams( const fldNames: Array Of String;
                       const fldValues: Array Of Variant): TFDParams; overload;
 function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
+procedure SetIdentHeader(TL: TstringList; const dbTable, Id: String);
 
 implementation
 
@@ -97,9 +100,10 @@ uses
     FireDAC.Comp.Client,
     FireDAC.Stan.Error,
 
-    uLib.DataModule,
+    uLib.Auth,
     uLib.Base,
-    uLib.Helpers
+    uLib.Helpers,
+    uLib.DataModule
     ;
 
 
@@ -116,8 +120,8 @@ type
                           Context: String;
                           Condition: String=''): TJSONValue;
     function cmdDel( Const dbTableName, sWhere: String): TJSONObject;
-    function cmdExecute(sCmd: string; pParams: TFDParams=Nil): Integer; overload;
-    function cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil): Integer; overload;
+    function cmdExecute(sCmd: string; pParams: TFDParams=Nil; aCommit: Boolean=false): Integer; overload;
+    function cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil; aCommit: Boolean=false): Integer; overload;
 
     function GetRecords(Const sQuery: String;
                               pParams: TFDParams=nil): TJSONArray;
@@ -126,13 +130,9 @@ type
                         sFields: String;
                         pParams: TFDParams): TJSONObject;
     procedure SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
-    procedure Commit;
-    procedure Rollback;
-    procedure StartTransaction;
   public
     { Public declarations }
-    autoCommit: Boolean;
-    HeadEnabled: boolean;
+    //HeadEnabled: boolean;
     constructor Create(AdmMain: TdmMain);
     destructor Destroy; override;
   end;
@@ -314,7 +314,7 @@ begin
   Str:=TStringBuilder.Create;
   for I := 0 to pParams.count-1 do
    begin
-     fname:=pParams[I].Name;
+     fname:=pParams[I].Name.toLower;
      if I>0 then
         Str.Append(' AND ');
      Str.Append('('+fName+'='+AmpFilter(AssignVal(pParams[I].Value))+')');
@@ -339,7 +339,7 @@ Var I: Integer;
 begin
   sFields:='';
   for I := Low(fields) to High(fields) do
-    sFields:=sFields+IfThen(I=0,'',',')+alias+fields[I];
+    sFields:=sFields+IfThen(I=0,'',',')+alias+fields[I].ToLower;
   result:=trim(sFields);
 end;
 
@@ -352,7 +352,7 @@ begin
   sFields:='';
   for I := Low(fields) to High(fields) do
     sFields:=sFields+
-          IfThen(I=0,'',',')+alias+fields[I]+'='+
+          IfThen(I=0,'',',')+alias+fields[I].ToLower+'='+
           AmpFilter(AssignVal(Values[I]));
   result:=trim(sFields);
 end;
@@ -366,7 +366,7 @@ begin
   sFields:='';
   for I := Low(fields) to High(fields) do
     sFields:=sFields+
-       IfThen(I=0,'',',')+alias+fields[I]+'='+
+       IfThen(I=0,'',',')+(alias+fields[I]).ToLower+'='+
        AmpFilter(GetStr(Values,succ(I),','));
   result:=trim(sFields);
 end;
@@ -380,7 +380,7 @@ begin
   sFields:='';
   for I := 1 to getMaxFields(fields,',') do
     sFields:=sFields+
-             IfThen(I=1,'',',')+alias+GetStr(fields,I,',')+'='+
+             IfThen(I=1,'',',')+(alias+GetStr(fields,I,',')).ToLower+'='+
              AmpFilter(GetStr(Values,I,','));
   result:=trimS(sFields);
 end;
@@ -444,7 +444,10 @@ begin
     result.Connection:=DMC.FDM.Cnx;
     result.SQL.Text:=sQry;
     if pParams<>Nil then
-       result.Params:=pParams;
+       begin
+         result.Params:=pParams;
+         result.Prepare;
+       end;
     if (sQry<>'') then
        Try
          result.OpenOrExecute;
@@ -466,7 +469,10 @@ begin
     result.Connection:=DMC.FDM.Cnx;
     result.CommandText.Text:=sQry;
     if pParams<>Nil then
-       result.Params:=pParams;
+       begin
+         result.Params:=pParams;
+         result.Prepare;
+       end;
     if sQry<>'' then
        Try
          result.OpenOrExecute;
@@ -491,21 +497,6 @@ begin
      FDM := AdmMain;
 end;
 
-procedure TFDMController.Commit;
-begin
-  FDM.Cnx.Commit;
-end;
-
-procedure TFDMController.Rollback;
-begin
-  FDM.Cnx.Rollback;
-end;
-
-procedure TFDMController.StartTransaction;
-begin
-  FDM.Cnx.StartTransaction;
-end;
-
 destructor TFDMController.Destroy;
 begin
   FDM.Free;
@@ -521,11 +512,12 @@ Var
 {$ENDIF}
 begin
 {$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
-  if HeadEnabled And forAudit then
+  if forAudit then
      begin
        Session:= TDSSessionManager.GetThreadSession;
-       userId:= Session.GetData('loginID');
-       userName:= Trim(Session.GetData('firstName')+' '+Session.GetData('lastName'));
+       userId:= Session.GetData(SS_LOGINID);
+       userName:= Trim(Session.GetData(SS_FIRSTNAME)+' '+
+                       Session.GetData(ss_LASTNAME));
        if (StrToInteger(userId)>0) then
        Case RDBMSKind of
         TFDRDBMSKinds.MYSQL:
@@ -548,7 +540,7 @@ begin
        end;
      end;
 {$ENDIF}
-  if HeadEnabled or ForAudit then
+  if ForAudit then
      Case RDBMSKind of
       TFDRDBMSKinds.MYSQL:
         begin
@@ -559,7 +551,7 @@ begin
       TFDRDBMSKinds.MSSQL:
         begin
           aHeader.Add('SET DATEFORMAT YMD;');
-          aHeader.Add('SET NOCOUNT ON;');
+          //aHeader.Add('SET NOCOUNT ON;');
            {result.Add('SET DATEFIRST 7;'); //, -- 1 = Monday, 7 = Sunday
            result.Add('SET LANGUAGE US_ENGLISH;');}
         end;
@@ -588,7 +580,7 @@ begin
 end;
 *)
 
-function TFDMController.cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil): Integer;
+function TFDMController.cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil; aCommit: Boolean=false): Integer;
 Var
    aHeader: TStringList;
 begin
@@ -597,27 +589,17 @@ begin
   aHeader.Add(sCmd.Text);
   FDM.Cmd.CommandText.Clear;
   FDM.Cmd.CommandText.Assign(aHeader);
-  if HeadEnabled then
-     Case RDBMSKind Of
-      TFDRDBMSKinds.MSSQL:;
-      TFDRDBMSKinds.MYSQL: ;
-      TFDRDBMSKinds.PostgreSQL:
-        begin
-          //Cmd.CommandText.Add('end$block_task$;');
-        end;
-     end;
-  if Not autoCommit then
-     StartTransaction;
-  //Result:=DB_COMMAND_ERROR;
+  if Not aCommit then
+      FDM.Cnx.StartTransaction;
   Try
     FDM.Cmd.Execute();
-    if Not autoCommit then
-       Commit;
+    if Not aCommit then
+        FDM.Cnx.Commit;
     Result:=DB_SUCCESSFUL;
   except
    on E: EFDDBEngineException do  begin
-           if Not autoCommit then
-              Rollback;
+           if Not aCommit then
+               FDM.Cnx.Rollback;
            SaveLogFile(FDM.Cmd.CommandText.text);
            raise Exception.Create(E.Message);
          end;
@@ -625,13 +607,13 @@ begin
   aHeader.Destroy;
 end;
 
-function TFDMController.cmdExecute(sCmd: String; pParams: TFDParams=Nil): Integer;
+function TFDMController.cmdExecute(sCmd: String; pParams: TFDParams=Nil; aCommit: Boolean=false): Integer;
 var
   TS: TStringList;
 begin
   TS:=TStringList.Create;
   TS.Text:=sCmd;
-  cmdExecute(TS,pParams);
+  cmdExecute(TS,pParams,aCommit);
   TS.Destroy;
 end;
 
@@ -727,34 +709,54 @@ begin
   FDM.Qry.SQL.Assign(cCmd);
   //FDM.Qry.SQL.SaveToFile('trans.txt');
   if pParams<>Nil then
-     FDM.Qry.Params:=pParams;
-  FDM.Qry.Prepare;
-  if Not autoCommit then
-     StartTransaction;
+     begin
+       FDM.Qry.Params:=pParams;
+       FDM.Qry.Prepare;
+     end;
+  //if Not aCommit then
+     FDM.Cnx.StartTransaction;
   Try
     FDM.Qry.OpenOrExecute;
     Result:=FDM.Qry.AsJSONObject;
     if GetInt(FDM.Qry,'error')<>0 then
        begin
-         if Not autoCommit then
+         //if Not aCommit then
             begin
               SaveLogFile(FDM.Qry.SQL.Text);
-              Rollback;
+              FDM.Cnx.Rollback;
             end;
        end
     else
-       if Not autoCommit then
-          Commit;
+       //if Not autoCommit then
+          FDM.Cnx.Commit;
   except
    on E: EFDDBEngineException do  begin
-           if Not autoCommit then
-              Rollback;
+           //if Not autoCommit then
+              FDM.Cnx.Rollback;
            SaveLogFile(FDM.Qry.SQL.Text);
            raise Exception.Create(E.Message);
          end;
   End;
   cCmd.Destroy;
 End;
+
+procedure SetIdentHeader(TL: TstringList; const dbTable, Id: String);
+var
+   seqName,
+   SingleName: String;
+   c: Integer;
+begin
+   C:=CountOccurrences('.',dbTable)+1;
+   SingleName:=GetStr(dbTable,c,'.');
+   if SingleName.IsEmpty then
+      SingleName:=dbTable;
+   seqName:='seq_'+SingleName;
+
+   TL.Add('IF EXISTS(SELECT name FROM sys.sequences WHERE name='+QuotedStr(seqName)+')');
+   TL.Add('   SELECT @'+Id+'=CAST(current_value AS INT) FROM sys.sequences WHERE name='+QuotedStr(seqName));
+   TL.Add('ELSE');
+   TL.Add('   SELECT @'+Id+'=IDENT_CURRENT(' + QuotedStr(SingleName) + ');');
+end;
 
 function TFDMController.cmdAdd( const dbTableName,
                             Context: String): TJSONValue;
@@ -765,8 +767,7 @@ function TFDMController.cmdAdd( const dbTableName,
                       const pValFlds: String;
                             TempTable: boolean);
   Var
-    sIns,
-    seqName: String;
+    sIns: String;
   begin
     sIns:=
      'INSERT INTO '+DBTABLE+' ('+pNameFlds+')'+#13+
@@ -774,15 +775,8 @@ function TFDMController.cmdAdd( const dbTableName,
     Case RDBMSKind Of
      TFDRDBMSKinds.MSSQL:
        begin
-         seqName:=GetStr(DBTABLE,2,'.');
-         if seqName.IsEmpty then
-            seqName:=DBTABLE;
-         seqName:='seq_'+seqName;
          iSQL.Add(sIns+';');
-         iSQL.Add('IF EXISTS(SELECT name FROM sys.sequences WHERE name='+QuotedStr(seqName)+')');
-         iSQL.Add('   SELECT @InsertedId=CAST(current_value AS INT) FROM sys.sequences WHERE name='+QuotedStr(seqName));
-         iSQL.Add('ELSE');
-         iSQL.Add('   SELECT @InsertedId=IDENT_CURRENT(' + QuotedStr(DBTABLE) + ');');
+         SetIdentHeader(iSQL,DBTABLE,'InsertedId');
          if TempTable then
             begin
               iSQL.Add('INSERT INTO #TempTable (id,field,value)');
@@ -830,22 +824,17 @@ begin
   try
     if Context.StartsWith('[') then
        begin
-         sCmd.Add('DECLARE ');
          Case RDBMSKind Of
           TFDRDBMSKinds.MSSQL:
               begin
-                sCmd.Add('  @InsertedId INT=0;');
                 fldsReturn:=
-                '(SELECT N''{"id":''+cast(@InsertedId as varchar)+''}'') insertedRows';
+                '(SELECT N''{"id":''+cast(@InsertedId as varchar)+''}'') insertedrows';
                 sCmd.Add('CREATE TABLE #TempTable (');
                 sCmd.Add('  id INT,');
                 sCmd.Add('  field VARCHAR(30),');
                 sCmd.Add('  value NVARCHAR(MAX)');
                 sCmd.Add(');');
               end;
-          TFDRDBMSKinds.MYSQL,
-          TFDRDBMSKinds.PostgreSQL:
-              sCmd.Add('  InsertedId INT=0;');
          end;
          AJSON:=CreateTJSONArray(Context);
          for I := 0 to AJSON.Count-1 do
@@ -857,22 +846,29 @@ begin
          Case RDBMSKind Of
           TFDRDBMSKinds.MSSQL:
             begin
-              fldsReturn:='(SELECT id, field, value FROM #TempTable FOR JSON AUTO) insertedRows';
+              fldsReturn:='(SELECT id, field, value FROM #TempTable FOR JSON AUTO) insertedrows';
               //sCmd.Add('DROP #TempTable');
             end;
          end;
-
        end
     else
        begin
-         GetFieldsvalues(Context,sFields,sValues,sSetVal,sCondition,false);
-         sCmd.Add('DECLARE ');
          Case RDBMSKind Of
           TFDRDBMSKinds.MSSQL:
               begin
+                sCmd.Add('DECLARE ');
                 sCmd.Add('  @InsertedId INT=0;');
+              end;
+          TFDRDBMSKinds.MYSQL,
+          TFDRDBMSKinds.PostgreSQL:
+              sCmd.Add('  InsertedId INT=0;');
+         End;
+         GetFieldsvalues(Context,sFields,sValues,sSetVal,sCondition,false);
+         Case RDBMSKind Of
+          TFDRDBMSKinds.MSSQL:
+              begin
                 fldsReturn:=
-                '(SELECT N''{"id":''+cast(@InsertedId as varchar)+''}'') insertedRows';
+                '(SELECT N''{"id":''+cast(@InsertedId as varchar)+''}'') insertedrows';
               end;
           TFDRDBMSKinds.MYSQL,
           TFDRDBMSKinds.PostgreSQL:
@@ -904,6 +900,7 @@ Var
   sCmd: TStringList;
   AJSON: TJSONArray;
   sJSON,
+  fldsReturn,
   sFields,
   sValues,
   sSetVal: String;
@@ -911,6 +908,8 @@ Var
 begin
   sCmd:=TStringList.create;
   try
+    fldsReturn:=
+                '(SELECT @@ROWCOUNT) updatedrows';
     if Context.StartsWith('[') then
        begin
          AJSON:=CreateTJSONArray(Context);
@@ -928,7 +927,7 @@ begin
          GetFieldsvalues(Context,sFields,sValues,sSetVal,pCondition,condition='');
          updTable(sCmd,dbTableName,sSetVal,Condition);
        end;
-    result:=execTrans(sCmd,Nil,'',Nil);
+    result:=execTrans(sCmd,Nil,fldsReturn,Nil);
   finally
     sCmd.Destroy;
   end;
@@ -957,8 +956,10 @@ begin
   FDM.Qry.SQL.Assign(aHeader);
   FDM.Qry.SQL.Add(sQuery);
   if pParams<>Nil then
-     FDM.Qry.Params:=pParams;
-  FDM.Qry.Prepare;
+     begin
+       FDM.Qry.Params:=pParams;
+       FDM.Qry.Prepare;
+     end;
   try
     FDM.Qry.Open;
   except
@@ -1151,7 +1152,9 @@ begin
   end;
 end;
 
-function ExecCmd( const sCommands: String; pParams: TFDParams=Nil): Integer; Overload;
+function ExecCmd( const sCommands: String;
+                        pParams: TFDParams=Nil;
+                        aCommit: Boolean=true): Integer; Overload;
 Var
    DMC: TFDMController;
 begin
@@ -1159,20 +1162,23 @@ begin
      Exit(0);
   DMC:=TFDMController.Create(dmMain);
   try
-    Result:=DMC.cmdExecute(sCommands,pParams);
+    Result:=DMC.cmdExecute(sCommands,pParams,aCommit);
   finally
     DMC.Destroy;
   end;
 end;
 
-function ExecCmd( sCommands: TStrings; pParams: TFDParams=Nil): Integer; Overload;
+function ExecCmd( sCommands: TStrings;
+                  pParams: TFDParams=Nil;
+                  aCommit: Boolean=true): Integer; Overload;
 begin
-  result:=ExecCmd( sCommands.text,pParams);
+  result:=ExecCmd( sCommands.text,pParams,aCommit);
 end;
 
 function ExecCmd( const sCommands: String;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): Integer; overload;
+                  const fldValues: Array of const;
+                        aCommit: Boolean=true): Integer; overload;
 var pParams: TFDParams;
 Var
    DMC: TFDMController;
@@ -1182,7 +1188,7 @@ begin
   DMC:=TFDMController.Create(dmMain);
   pParams:=setFDParams(fldNames,fldValues);
   Try
-    Result:=DMC.cmdExecute(sCommands,pParams);
+    Result:=DMC.cmdExecute(sCommands,pParams,aCommit);
   finally
     pParams.Destroy;
     DMC.Destroy;
@@ -1191,9 +1197,10 @@ end;
 
 function ExecCmd( sCommands: TStrings;
                    const fldNames:  Array of String;
-                   const fldValues: Array of const): Integer; Overload;
+                   const fldValues: Array of const;
+                   aCommit: Boolean=true): Integer; Overload;
 begin
-  result:= ExecCmd( sCommands.Text,fldNames,fldValues);
+  result:= ExecCmd( sCommands.Text,fldNames,fldValues,aCommit);
 end;
 
 

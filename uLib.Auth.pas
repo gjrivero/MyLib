@@ -9,12 +9,15 @@ uses
     System.classes;
 
 Const
-   SS_USER = 'user';
-   SS_ROLE = 'role';
-   SS_PASSWORD = 'password';
-   SS_VALID = 'valid';
-   SS_ERROR = 'error';
-   SS_MESSAGE = 'message';
+   SS_USER      = 'user';
+   SS_ROLE      = 'role';
+   SS_PASSWORD  = 'password';
+   SS_VALID     = 'valid';
+   SS_ERROR     = 'error';
+   SS_MESSAGE   = 'message';
+   SS_LOGINID   = 'loginid';
+   SS_FIRSTNAME = 'firstname';
+   SS_LASTNAME  = 'lastname';
 
    ACT_DEFAULT  = 0;
    ACT_SIGNUP   = 1;
@@ -43,6 +46,7 @@ Type
      Method,
      JSONBody,
      DEV_KEY_NAME: string;
+     MethodIndex: Integer;
    private
    public
    end;
@@ -64,9 +68,6 @@ Uses
     uLib.Helpers
     ;
 
-
-var
-   MethodIndex: Integer;
 
 type
   TIdHTTPAppRequestHelper = class helper for TIdHTTPAppRequest
@@ -170,9 +171,7 @@ Var
 begin
   Host_Url:=LowerCase(Request.Host);
   Base_Url:=LowerCase(Request.PathInfo);
-  MethodIndex:=3;
-  if Base_Url.Contains('/api') then
-     MethodIndex:=4;
+  MethodIndex:=CountOccurrences('/',Base_Url)+1;
 
   Method:=LowerCase(GetStr(Base_Url,MethodIndex,'/'));
   DEV_KEY_NAME:=devKey;
