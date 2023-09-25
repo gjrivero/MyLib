@@ -96,6 +96,7 @@ uses
     System.IOUtils,
     System.Math,
     Datasnap.DSSession,
+    Data.DB,
     Data.DBXPlatform,
     FireDAC.Comp.Client,
     FireDAC.Stan.Error,
@@ -809,8 +810,7 @@ function TFDMController.cmdAdd( const dbTableName,
   end;
 
 Var
-  sCmd,
-  SdCL: TStringList;
+  sCmd: TStringList;
   AJSON: TJSONArray;
   sFields,
   sValues,

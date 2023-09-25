@@ -124,7 +124,6 @@ Var
    Action: Integer;
    Valid: Boolean;
 begin
-  Valid:=False;
   errorMsg:='Invalid invocation!';
   GetAction(aMainPath,Method,Action);
   aResp:='';

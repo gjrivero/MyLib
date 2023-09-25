@@ -1415,7 +1415,7 @@ end;
 Procedure SetJSON(JSON: TJSONObject;  const FieldName, Value: String); Overload;
 begin
   JSON.RemovePair(fieldName);
-  JSON.AddPair(fieldName,TJSONObject.ParseJSONValue(TEncoding.UTF8.GetBytes(Value), 0) as TJSONValue);
+  JSON.AddPair(fieldName,TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(Value), 0) as TJSONValue);
 end;
 
 Procedure SetJSON(JSON: TJSONObject;  const FieldName: String; Value: TJSONValue); Overload;
@@ -1466,17 +1466,15 @@ end;
 
 function GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
 Var
-    JSONValue: TJSONValue;
     Ok: Boolean;
 begin
-  Ok:=false;
+  ok:=false;
   try
-    JSONValue:=oJSON.GetValue(FieldName);
-    If oJSON.TryGetValue(fieldname,Ok) Then
-        ;
+    If oJSON.TryGetValue<boolean>(fieldname,ok) Then
+       ;
   except
   end;
-  Result:=Ok;
+  Result:=ok;
 end;
 
 function GetBool(const sJSON: String; const FieldName: string): boolean; Overload;
@@ -1671,7 +1669,7 @@ begin
        (JSONValue is TJSONObject) then
        St:=JSONValue.ToString
     else
-       If oJSON.TryGetValue(fieldname,St) Then
+       If oJSON.TryGetValue<string>(fieldname,St) Then
           ;
   except
     St:='';

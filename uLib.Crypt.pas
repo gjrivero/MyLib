@@ -118,8 +118,6 @@ procedure EncryptFile( const fileSource, fileTarget: String;
                        const CipherKey, IV: RawByteString);
 var
   Cipher: TCipher_AES128;
-  Input: TBytes;
-  i: Integer;
 begin
   Cipher := TCipher_AES128.Create;
   try
@@ -213,7 +211,6 @@ function DeCryptRequest(Const sRequest: RawByteString;
 var
   aReq,
   Output: TBytes;
-  sHash: RawByteString;
   I,L,
   Pad,T: Integer;
 begin
