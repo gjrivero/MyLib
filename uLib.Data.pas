@@ -142,15 +142,6 @@ type
 //  TFDTable(Result).CopyDataSet(dsArticles, [coStructure, coRestart, coAppend]);
 //-------------------------------------------------------
 
-procedure  SetFlds( OJSON: TJSONObject;
-                   const fields: array of String;
-                   const values: array of const); overload;
-Var I: Integer;
-begin
-  for I := Low(values) to High(values) do
-   SetStr(OJSON,fields[I],AssignVal(Values[I]).DeQuotedString);
-end;
-
 function GetDriverID(CnxDriver: String): TFDRDBMSKind;
 var i,t: Integer;
 begin
@@ -1073,7 +1064,7 @@ var
 begin
   DMC:=TFDMController.Create(dmMain);
   Context:='';
-  SetFldsJSON(Context,fldNames,fldValues);
+  SetJSON(Context,fldNames,fldValues);
   try
     Result:=DMC.cmdAdd(dbTableName,Context);
   finally
@@ -1117,7 +1108,7 @@ var Context: string;
 begin
   DMC:=TFDMController.Create(dmMain);
   Context:='{}';
-  SetFldsJSON(Context,fldNames,fldValues);
+  SetJSON(Context,fldNames,fldValues);
   try
     Result:=DMC.cmdUpd(dbTableName,Context,Condition);
   finally

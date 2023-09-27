@@ -15,7 +15,6 @@ uses
    ,System.Net.URLClient
    ,System.Net.HttpClientComponent
    ,REST.Types
-   ,Xml.XMLIntf
    ,FireDAC.Stan.Param;
 
 
@@ -53,11 +52,10 @@ Function  GoodReal(R: Double; defDec: Integer=2): Double; Overload;
 Function  GoodReal(S: String; defDec: Integer=2): Double; Overload;
 Function  DivCero(A,B: Double): Double;
 function  LeftS(S: String; Len: Integer; Ch: Char=' '): String;
+
 Function  GetFloat(OJSON: TJSONObject; const fieldname: String): Double; Overload;
 Function  GetFloat(FT: TDataSet; const FieldName: String): Double; OverLoad;
 Function  GetFloat(const St: String; Index: Integer; CDiv: Char=ChDiv): Double; OverLoad;
-Function  GetFloat(Item: IXMLNode): Double; Overload;
-Function  GetFloat(Item: IXMLNode; const AttribName: String): Double; Overload;
 Function  GetFloat(const sJSON, fieldname: String): Double; Overload;
 
 Function  GetInt(OJSON: TJSONObject; const fieldname: String): Integer; Overload;
@@ -65,8 +63,6 @@ Function  GetInt(OJSON: TJSONObject; const fieldname: String; iDefault: Integer)
 Function  GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;
 Function  GetInt(const St: String; Index: Integer; CDiv: Char=ChDiv): Integer; Overload;
 Function  GetInt(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Integer; OverLoad;
-Function  GetInt(Item: IXMLNode; const AttribName: String): Integer; Overload;
-Function  GetInt(Item: IXMLNode): Integer; Overload;
 Function  GetInt(const sJSON, fieldname: String): Integer; Overload;
 
 Function  GetStr(OJSON: TJSONObject; const FieldName: String): String; Overload;
@@ -74,79 +70,56 @@ Function  GetStr(FT: TDataSet; const FieldName: String): String; Overload;
 Function  GetStr(const St: String; Index: Integer; CDiv: String): String; Overload;
 Function  GetStr(const St: String; Index: Integer; CDiv: Char=ChDiv): String; Overload;
 Function  GetStr(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): String; Overload;
-Function  GetStr(Item: IXMLNode; const AttribName: String): String; Overload;
-Function  GetStr(Item: IXMLNode): String; Overload;
 Function  GetStr(const sJSON, fieldname: String): String; Overload;
 
 Function  GetDate(OJSON: TJSONObject; const fieldname: String): TDateTime; Overload;
 Function  GetDate(FT: TDataSet; const FieldName: String): TDateTime; Overload;
 Function  GetDate(const St: String; Index: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
 Function  GetDate(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
-Function  GetDate(Item: IXMLNode; const AttribName: String): TDateTime; Overload;
-Function  GetDate(Item: IXMLNode): TDateTime; Overload;
 Function  GetDate(const sJSON, fieldname: String): TDateTime; Overload;
+function  GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
+function  GetBool(const sJSON: String; const FieldName: string): boolean; Overload;
 
-function GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
-function GetBool(const sJSON: String; const FieldName: string): boolean; Overload;
-
-function GetApplicationPath(LocalPath: Boolean): String;
-
-Procedure SetBool(OJSON: TJSONObject; const FieldName: string; Value: boolean); Overload;
-Procedure SetBool(var sJSON: String; const FieldName: string; Value: boolean); Overload;
+function  GetApplicationPath(LocalPath: Boolean): String;
+Procedure StrRemove(var sJSON: String; const FieldName: String);
 
 Procedure SetStr(FT: TDataSet; const FieldName, Value: String); Overload;
-Procedure SetStr(OJSON: TJSONObject; const FieldName, Value: String); Overload;
 Procedure SetStr(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
 Procedure SetStr(LB: TStrings; Index, N: Integer; const St: String; CDiv: Char=ChDiv ); Overload;
-Procedure SetStr(var sJSON: String; const FieldName, Value: String); Overload;
-Procedure SetStr(var sJSON: String; const FieldName: String; Value: TJSONValue); Overload;
-
-Procedure StrRemove(var sJSON: String; const FieldName: String);
-Procedure SetJSON(JSON: TJSONObject; const FieldName: String; Value: TJSONValue); Overload;
-Procedure SetJSON(JSON: TJSONObject; const FieldName, Value: String); Overload;
-Procedure SetJSON(var sJSON: String; const FieldName, Value: String); Overload;
-Procedure SetJSON(var sJSON: String; const FieldName: String; Value: TJSONValue); Overload;
 
 Procedure SetInt(FT: TDataSet; const FieldName: String; Value: Integer); Overload;
 Procedure SetInt(FT: TDataSet; const FieldName: String; Const Value: String); Overload;
-Procedure SetInt(OJSON: TJSONObject; const FieldName: String; Value: Integer); Overload;
-Procedure SetInt(OJSON: TJSONObject; const FieldName: String; Const Value: String); Overload;
 Procedure SetInt(Var StSource: String; Index: Integer; Value: Integer; CDiv: Char=ChDiv); Overload;
 Procedure SetInt(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
 Procedure SetInt(LB: TStrings; Index, N: Integer; Value: Integer; CDiv: Char=ChDiv); Overload;
 Procedure SetInt(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
-Procedure SetInt(var sJSON: String; const FieldName, Value: String); Overload;
-Procedure SetInt(var sJSON: String; const FieldName: String; Value: Integer); Overload;
 
 Procedure SetFloat(FT: TDataSet; const FieldName: String; Value: Double); Overload;
 Procedure SetFloat(FT: TDataSet; const FieldName: String; const Value: String); Overload;
-Procedure SetFloat(OJSON: TJSONObject; const FieldName: String; Value: Double); Overload;
-Procedure SetFloat(OJSON: TJSONObject; const FieldName: String; const Value: String); Overload;
 Procedure SetFloat(Var StSource: String; Index: Integer; Value: Double; CDiv: Char=ChDiv); Overload;
 Procedure SetFloat(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
 Procedure SetFloat(LB: TStrings; Index, N: Integer; Value: Double; CDiv: Char=ChDiv); Overload;
 Procedure SetFloat(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
-Procedure SetFloat(var sJSON: String; const FieldName, Value: String); Overload;
-Procedure SetFloat(var sJSON: String; const FieldName: String; Value: Double); Overload;
 
 Procedure SetDate(FT: TDataSet; const FieldName: String; Value: TDateTime); Overload;
 Procedure SetDate(FT: TDataSet; const FieldName: String; const Value: String); Overload;
-Procedure SetDate(OJSON: TJSONObject; const FieldName: String; Value: TDateTime); Overload;
-Procedure SetDate(OJSON: TJSONObject; const FieldName: String; const Value: String); Overload;
 Procedure SetDate(Var StSource: String; Index: Integer; Value: TDateTime; CDiv: Char=ChDiv); Overload;
 Procedure SetDate(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
 Procedure SetDate(LB: TStrings; Index, N: Integer; Value: TDateTime; CDiv: Char=ChDiv); Overload;
 Procedure SetDate(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
-Procedure SetDate(var sJSON: String; const FieldName, Value: String); Overload;
-Procedure SetDate(var sJSON: String; const FieldName: String; Value: TDateTime); Overload;
 
 procedure SetFlds( var sLine: String;
                    const fields: array of Integer;
                    const values: array of const;
                    pChDiv: Char=CHDIV);
-procedure SetFldsJSON( var sJSON: String;
+
+procedure SetJSON( Var sJSON: String;
                    const fields: array of string;
-                   const values: array of const);
+                   const values: array of const); overload;
+procedure SetJSON( JSON: TJSONObject;
+                   const fields: array of string;
+                   const values: array of const); overload;
+
 procedure SaveLogFile(const sMessage: String);
 
 Function  GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
@@ -312,7 +285,8 @@ function AmpFilter(sVal: String): String;
 Var S: String;
 begin
   S:=Trim(sVal);
-  if (Length(S.DeQuotedString)>2) and (S.DeQuotedString[1]='`') then
+  if (Length(S.DeQuotedString)>1) and
+     (S.DeQuotedString[1]='`') then
      begin
        S:=S.DeQuotedString;
        Delete(S,1,1);
@@ -345,14 +319,15 @@ var Str: String;
 begin
   Str:='';
   case AVarRec.VType of
-   vtBoolean: Str:=Ord(AVarRec.VBoolean).ToString;
+   vtBoolean: Str:=AVarRec.VBoolean.ToString(True);
    vtInt64: Str:=AVarRec.VInt64^.ToString;
    vtInteger: Str:=AVarRec.VInteger.ToString;
+   vtObject:  Str:=UnicodeString(AVarRec.VUnicodeString);
    vtExtended,
    vtCurrency: Str:=AVarRec.VExtended^.ToString;
+
    vtWideChar: Str:=QuotedStr(AVarRec.VWideChar);
    vtWideString: Str:=WideString(AVarRec.VWideString);
-
    vtChar: Str:=QuotedStr(AVarRec.VWideChar);
    vtPChar: Str:=QuotedStr(UnicodeString(AVarRec.VPChar^));
    vtPWideChar: Str:=QuotedStr(AVarRec.VPWideChar^);
@@ -390,22 +365,19 @@ end;
 function SetJSONResponse( iStatus: Integer;
                           const sMessage: string;
                           aJSON: String): TJSONObject;
-var
-  tJSON: String;
 begin
-  tJSON:='';
-  SetInt(tJSON,'status',iStatus);
-  SetStr(tJSON,'message',sMessage);
-  if aJSON<>'' then
-     SetJSON(tJSON,'response',aJSON);
-  result:=CreateTJSONObject(tJSON);
+  Result:=TJSONObject.Create;
+  SetJSON(Result,['status','message','response'],
+                 [iStatus,sMessage,aJSON]);
 end;
 
 function SetJSONResponse( iStatus: Integer;
                           const sMessage: string;
                           aJSON: TJSONValue): TJSONObject;
 begin
-  result:=SetJSONResponse( iStatus,sMessage, aJSON.ToString);
+  Result:=TJSONObject.Create;
+  SetJSON(Result,['status','message','response'],
+                 [iStatus,sMessage,aJSON]);
 end;
 
 //-------------------------------------------------//
@@ -416,21 +388,21 @@ function CreateTJSONObject(sJSON: String): TJSONObject;
 Begin
   if sJSON.IsEmpty then
      sJSON:='{}';
-  Result:= TJSONObject.ParseJSONValue(TEncoding.UTF8.GetBytes(sJSON), 0) as TJSONObject;
+  Result:= TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(sJSON), 0) as TJSONObject;
 End;
 
 function CreateTJSONvalue(sJSON: String): TJSONValue;
 Begin
   if sJSON.IsEmpty then
      sJSON:='{}';
-  Result:= TJSONObject.ParseJSONValue(TEncoding.UTF8.GetBytes(sJSON), 0) as TJSONValue;
+  Result:= TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(sJSON), 0) as TJSONValue;
 End;
 
 function CreateTJSONArray(sJSON: String): TJSONArray;
 Begin
   if sJSON.IsEmpty then
      sJSON:='[]';
-  Result:= TJSONObject.ParseJSONValue(TEncoding.UTF8.GetBytes(sJSON), 0) as TJSONArray;
+  Result:= TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(sJSON), 0) as TJSONArray;
 End;
 
 function JSONArrayToObject(aJSON: TJSONValue; Index: Integer=0): TJSONObject;
@@ -475,7 +447,13 @@ begin
         begin
           delete(Value,1,1);
           delete(Value,Length(Value),1);
-          Value:='N'+Value.QuotedString;
+          if (Value<>'') And (Value[1]='`') then
+             begin
+               Delete(Value,1,1);
+               Delete(Value,Pos('`',Value),1);
+             end
+          else
+            Value:='N'+Value.QuotedString;
         end
      else
         if Not Value.IsEmpty and (Value[1] In ['[','{']) then
@@ -483,9 +461,8 @@ begin
               TFDRDBMSKinds.MSSQL:
                 Value:='N'+Value.QuotedString;
               else
-                 Value:=Value.QuotedString;
+                Value:=Value.QuotedString;
            End;
-
      if update and (CompareText(field,'id')=0) then
         begin
           sCondition:=field+'='+value;
@@ -497,9 +474,9 @@ begin
           sSetVal:=sSetVal+','+field+'='+Value;
         end;
    End;
-  System.Delete(sValues,1,1);
-  System.delete(sFields,1,1);
-  System.delete(sSetVal,1,1);
+  Delete(sValues,1,1);
+  delete(sFields,1,1);
+  delete(sSetVal,1,1);
   if update and sCondition.IsEmpty then
      begin
        sCondition:=getStr(sFields,1,',')+'='+GetStr(sValues,1,',');
@@ -536,7 +513,6 @@ begin
   System.delete(sFields,1,1);
   System.delete(sSetVal,1,1);
 end;
-
 
 procedure saveTofile(const pFileName: String;
                     const SourceText, CipherKey, IV: RawByteString;
@@ -828,7 +804,7 @@ Begin
      End;
 End;
 
-Function  getMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
+Function  GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
 var St,
     sFields: String;
     T,P: Integer;
@@ -871,36 +847,58 @@ begin
    SetStr(sLine,fields[I], AssignVal(Values[I]).DeQuotedString, pChDiv);
 end;
 
-procedure SetFldsJSON( var sJSON: String;
-                   const fields: array of string;
-                   const values: array of const);
+procedure SetJSON( JSON: TJSONObject;
+                    const fields: array of string;
+                    const values: array of const);
 Var I: Integer;
-    JSON: TJSONObject;
     S: String;
 begin
-  if sJSON='' then
-     sJSON:='{}';
+  if (JSON<>Nil) then
+     for I := Low(fields) to High(fields) do
+      begin
+        JSON.RemovePair(fields[I]);
+        case Values[I].VType of
+         vtBoolean:
+           JSON.AddPair(fields[I], TJSONBool.Create(Values[I].VBoolean));
+         vtObject:
+           JSON.AddPair(fields[I], (Values[I].VObject As TJSONValue));
+         vtInt64:
+           JSON.AddPair(fields[I], Values[I].VInt64^);
+         vtInteger:
+           JSON.AddPair(fields[I], Values[I].VInteger);
+         vtExtended,
+         vtCurrency:
+           JSON.AddPair(fields[I], Values[I].VExtended^);
+         else
+           if (Values[I].VType = vtVariant) then
+              JSON.AddPair(fields[I], TJSONNull.Create)
+           else
+              begin
+                S:=AssignVal(Values[I]).DeQuotedString;
+                if (S.StartsWith('{') or S.StartsWith('[')) then
+                   JSON.AddPair(fields[I],CreateTJSONValue(S))
+                else
+                   JSON.AddPair(fields[I],TJSONString.Create(S));
+              end;
+        end;
+      end;
+end;
+
+procedure SetJSON( var sJSON: String;
+                    const fields: array of string;
+                    const values: array of const);
+var
+   JSON: TJSONObject;
+begin
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
-       for I := Low(fields) to High(fields) do
-        begin
-          JSON.RemovePair(fields[I]);
-          S:=AssignVal(Values[I]);
-          if IsNumeric(S) then
-             begin
-               If Pos('.',S)=0 Then
-                  JSON.AddPair( fields[I],TJSONNumber.Create(S.ToInteger))
-               else
-                  JSON.AddPair( fields[I],TJSONNumber.Create(S.ToDouble));
-             end
-          else
-             JSON.AddPair(fields[I],TJSONString.Create(S.DeQuotedString));
-        end;
+       SetJSON(JSON,fields,values);
        sJSON:=JSON.ToString;
-       FreeAndNil(JSON);
+       JSON.Destroy;
      end;
 end;
+
 
 function StrToDateTimeFmt(sDateTime: String): TDateTime;
 var
@@ -1110,18 +1108,6 @@ Begin
   Result:=S;
 end;
 
-Procedure SetFloat(OJSON: TJSONObject; const FieldName: String; Value: Double); Overload;
-begin
-  OJSON.RemovePair(fieldName);
-  OJSON.AddPair(fieldName,TJSONNumber.Create(Value));
-end;
-
-Procedure SetFloat(OJSON: TJSONObject; const FieldName: String; const Value: String); Overload;
-begin
-  OJSON.RemovePair(fieldName);
-  OJSON.AddPair(fieldName,TJSONNumber.Create(StrToReal(Value)));
-end;
-
 Procedure SetFloat(FT: TDataSet; const FieldName: String; Value: Double); Overload;
 Begin
   FT.FieldByName(FieldName).AsFloat:=Value;
@@ -1156,34 +1142,6 @@ End;
 Procedure SetFloat(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
 begin
   SetFloat(LB,Index,N,StrToReal(Value),CDiv);
-end;
-
-Procedure SetFloat(var sJSON: String; const FieldName: String; Value: Double); Overload;
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);;
-  if JSON<>Nil then
-     begin
-       SetFloat(JSON,fieldName,Value);
-       sJSON:=JSON.ToString;
-       FreeAndNil(JSON);
-     end;
-end;
-
-Procedure SetFloat(var sJSON: String; const FieldName, Value: String); Overload;
-begin
-  SetFloat(sJSON,fieldName,StrToReal(Value));
-end;
-
-Procedure SetDate(OJSON: TJSONObject; const FieldName: String; Value: TDateTime); Overload;
-begin
-  OJSON.RemovePair(fieldName);
-  OJSON.AddPair(fieldName,TJSONString.Create(DateTimeStr(Value)));
-end;
-
-Procedure SetDate(OJSON: TJSONObject; const FieldName: String; Const Value: String); Overload;
-begin
-  SetDate(OJSON, fieldName, StrToDateTimeFmt(Value));
 end;
 
 Procedure SetDate(FT: TDataSet; const FieldName: String; Value: TDateTime); Overload;
@@ -1226,23 +1184,6 @@ begin
   Setdate(LB,Index,N,StrToDateTimeFmt(Value),CDiv);
 end;
 
-Procedure SetDate(var sJSON: String; const FieldName: String; Value: TDateTime); Overload;
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       SetDate(JSON,fieldName,Value);
-       sJSON:=JSON.ToString;
-       FreeAndNil(JSON);
-     end;
-end;
-
-Procedure SetDate(var sJSON: String; const FieldName, Value: String); Overload;
-begin
-  SetDate(sJSON,fieldName,StrToDateTimeFmt(Value));
-end;
-
 Procedure SetInt(FT: TDataSet; const FieldName: String; Value: Integer); Overload;
 Begin
   Try
@@ -1255,17 +1196,6 @@ End;
 Procedure SetInt(FT: TDataSet; const FieldName: String; Const Value: String); Overload;
 begin
   SetInt(FT,FieldName,StrToInteger(Value));
-end;
-
-Procedure SetInt(OJSON: TJSONObject; const FieldName: String; Value: Integer); Overload;
-Begin
-  OJSON.RemovePair(fieldName);
-  OJSON.AddPair(fieldName,TJSONNumber.Create(Value));
-End;
-
-Procedure SetInt(OJSON: TJSONObject; const FieldName: String; Const Value: String); Overload;
-begin
-  SetInt(OJSON,fieldName,StrToInteger(Value));
 end;
 
 Procedure SetInt(Var StSource: String; Index: Integer; Value: Integer; CDiv: Char=ChDiv); Overload;
@@ -1294,23 +1224,6 @@ begin
   Setint(LB,Index,N,StrToInteger(Value),CDiv);
 end;
 
-Procedure SetInt(var sJSON: String; const FieldName: String; Value: Integer); Overload;
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       SetInt(JSON,fieldName,Value);
-       sJSON:=JSON.ToString;
-       FreeAndNil(JSON);
-     end;
-end;
-
-Procedure SetInt(var sJSON: String; const FieldName, Value: String); Overload;
-begin
-  SetInt(sJSON,fieldName,StrToInteger(Value));
-end;
-
 Procedure SetStr(FT: TDataSet; const FieldName, Value: String); Overload;
 Begin
   Try
@@ -1319,30 +1232,6 @@ Begin
     FT.FieldByName(FieldName).AsString:='';
   End;
 End;
-
-Procedure SetBool(OJSON: TJSONObject; const FieldName: string; Value: boolean); Overload;
-begin
-  OJSON.RemovePair(fieldName);
-  OJSON.AddPair(fieldName,TJSONBool.Create(Value));
-end;
-
-Procedure SetBool(var sJSON: String; const FieldName: string; Value: boolean); Overload;
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       Setbool(JSON,fieldName,Value);
-       sJSON:=JSON.ToString;
-       FreeAndNil(JSON);
-     end;
-end;
-
-Procedure SetStr(OJSON: TJSONObject; const FieldName, Value: String); Overload;
-begin
-  OJSON.RemovePair(fieldName);
-  OJSON.AddPair(fieldName,TJSONString.Create(AmpFilter(Value)));
-end;
 
 Procedure SetStr(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
 Var L,Len,
@@ -1386,71 +1275,6 @@ Begin
   SetStr(S,N,St,CDiv);
   LB[Index]:=S;
 End;
-
-Procedure SetStr(var sJSON: String; const FieldName, Value: String); Overload;
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       SetStr(JSON,fieldName,Value);
-       sJSON:=JSON.ToString;
-       FreeAndNil(JSON);
-     end;
-end;
-
-Procedure SetStr(var sJSON: String; const FieldName: String; Value: TJSONValue); Overload;
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       JSON.RemovePair(fieldName);
-       JSON.AddPair(fieldName,Value);
-       sJSON:=JSON.ToString;
-       FreeAndNil(JSON);
-     end;
-end;
-
-Procedure SetJSON(JSON: TJSONObject;  const FieldName, Value: String); Overload;
-begin
-  JSON.RemovePair(fieldName);
-  JSON.AddPair(fieldName,TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(Value), 0) as TJSONValue);
-end;
-
-Procedure SetJSON(JSON: TJSONObject;  const FieldName: String; Value: TJSONValue); Overload;
-Var s: String;
-begin
-  JSON.RemovePair(fieldName);
-  s:=Value.ToString;
-  JSON.AddPair(fieldName,Value);
-end;
-
-Procedure SetJSON(var sJSON: String; const FieldName, Value: String); Overload;
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       JSON.RemovePair(fieldName);
-       JSON.AddPair(fieldName,TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(Value), 0) as TJSONValue);
-       sJSON:=JSON.ToString;
-       FreeAndNil(JSON);
-     end;
-end;
-
-Procedure SetJSON(var sJSON: String; const FieldName: String; Value: TJSONValue); Overload;
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       JSON.RemovePair(fieldName);
-       JSON.AddPair(fieldName,Value);
-       sJSON:=JSON.ToString;
-       FreeAndNil(JSON);
-     end;
-end;
 
 Procedure StrRemove(var sJSON: String; const FieldName: String);
 var JSON: TJSONObject;
@@ -1500,16 +1324,6 @@ Function GetFloat(OJSON: TJSONObject; const fieldname: String): Double; Overload
 begin
   Result:=StrToReal(GetStr(OJSON,fieldName));
 end;
-
-Function GetFloat(Item: IXMLNode; const AttribName: String): Double; Overload;
-Begin
-  Result:=StrToReal(varToStr(Item.Attributes[AttribName]));
-End;
-
-Function GetFloat(Item: IXMLNode): Double; Overload;
-Begin
-  Result:=StrToReal(varToStr(Item.NodeValue));
-End;
 
 Function GetFloat(const St: String; Index: Integer; CDiv: Char=ChDiv): Double; Overload;
 Begin
@@ -1564,16 +1378,6 @@ Begin
   Result:=StrToInteger(FT.FieldByName(FieldName).AsString);
 End;
 
-Function GetInt(Item: IXMLNode; const AttribName: String): Integer; Overload;
-Begin
-  Result:=StrToInteger(varToStr(Item.Attributes[AttribName]));
-End;
-
-Function GetInt(Item: IXMLNode): Integer; Overload;
-Begin
-  Result:=StrToInteger(varToStr(Item.NodeValue));
-End;
-
 Function GetInt(const St: String; Index: Integer; CDiv: Char=ChDiv): Integer; Overload;
 Begin
   Result:=StrToInteger(GetStr(St,Index,CDiv));
@@ -1614,20 +1418,6 @@ Begin
   if Not FT.FieldByName(FieldName).IsNull then
      D:=FT.FieldByName(FieldName).AsDateTime;
   Result:=D;
-End;
-
-Function GetDate(Item: IXMLNode; const AttribName: String): TDateTime; Overload;
-Var St: String;
-Begin
-  St:=Trim(varToStrDef(Item.Attributes[AttribName],''));
-  Result:=StrToDateTimeFmt(St);
-End;
-
-Function GetDate(Item: IXMLNode): TDateTime; Overload;
-Var St: String;
-Begin
-  St:=Trim(varToStrDef(Item.NodeValue,''));
-  Result:=StrToDateTimeFmt(St);
 End;
 
 Function GetDate(const St: String; Index: Integer; CDiv: Char=ChDiv ): TDateTime; Overload;
@@ -1708,22 +1498,6 @@ End;
 Function GetStr(Const St: String; Index: Integer; CDiv: Char=ChDiv): String; Overload;
 Begin
   result:=GetStr(St,Index,String(CDiv));
-End;
-
-Function GetStr(Item: IXMLNode; const AttribName: String): String; Overload;
-Begin
-  Result:='';
-  if Not VarIsNull(Item) then
-     Result:=Trim(VarToStrDef(Item.Attributes[AttribName],''));
-End;
-
-Function GetStr(Item: IXMLNode): String; Overload;
-Var St: String;
-Begin
-  St:='';
-  if Not VarIsNull(Item) then
-     St:=Trim(VarToStrDef(Item.NodeValue,''));
-  Result:=St;
 End;
 
 Function GetStr(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): String; OverLoad;

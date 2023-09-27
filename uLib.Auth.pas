@@ -127,8 +127,8 @@ begin
   errorMsg:='Invalid invocation!';
   GetAction(aMainPath,Method,Action);
   aResp:='';
-  SetBool(aResp,SS_VALID,false);
-  SetBool(aJSON,SS_VALID,false);
+  SetJSON(aResp,[SS_VALID],[false]);
+  SetJSON(aJSON,[SS_VALID],[false]);
   if action=ACT_DEFAULT then
      Exit;
   //---------------------------------
