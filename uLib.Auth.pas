@@ -9,20 +9,10 @@ uses
     System.classes;
 
 Const
-   SS_USER      = 'user';
-   SS_ROLE      = 'role';
-   SS_PASSWORD  = 'password';
-   SS_VALID     = 'valid';
-   SS_ERROR     = 'error';
-   SS_MESSAGE   = 'message';
-   SS_LOGINID   = 'loginid';
-   SS_FIRSTNAME = 'firstname';
-   SS_LASTNAME  = 'lastname';
-
-   ACT_DEFAULT  = 0;
-   ACT_SIGNUP   = 1;
-   ACT_LOGIN    = 2;
-   ACT_VALIDATE = 3;
+   ACT_DEFAULT    = 0;
+   ACT_SIGNUP     = 1;
+   ACT_LOGIN      = 2;
+   ACT_VALIDATE   = 3;
 
 Type
    TUserWebAuthenticate = class
@@ -65,6 +55,7 @@ Uses
 
     uLib.Base,
     uLib.Data,
+    uLib.Common,
     uLib.Helpers
     ;
 
@@ -167,11 +158,22 @@ Var
    aValue,
    sHeader: String;
    I: Integer;
+   TL: TstringList;
 begin
+  TL:= TstringList.Create;
   Host_Url:=LowerCase(Request.Host);
   Base_Url:=LowerCase(Request.PathInfo);
-  MethodIndex:=CountOccurrences('/',Base_Url)+1;
-
+  Tl.Add('Host: '+ Host_Url);
+  Tl.Add('Path: '+Base_Url);
+  // '/api/otp/account/2'
+  if Host_Url.Contains('api') then
+     // '/otp/account/2'
+     MethodIndex:=3
+  else
+     // '/api/otp/account/2'
+     MethodIndex:=4;
+  Tl.SaveToFile('url.txt');
+  Tl.Destroy;
   Method:=LowerCase(GetStr(Base_Url,MethodIndex,'/'));
   DEV_KEY_NAME:=devKey;
   aHeaders:=TStringList.Create;

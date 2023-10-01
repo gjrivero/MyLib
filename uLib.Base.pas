@@ -19,23 +19,22 @@ uses
 
 
 Const
-  CHDIV  = #1;
-  DATE_FORMAT = 'YYYY-MM-DD';
-  TIME_FORMAT = 'hh:nn:ss';
-  DATE_TIME_FORMAT = 'yyyy-mm-dd hh:nn:ss';
-  REGEX_EMAIL =  '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-\p{Cyrillic}]'+
+   CHDIV  = #1;
+   DATE_FORMAT = 'YYYY-MM-DD';
+   TIME_FORMAT = 'hh:nn:ss';
+   DATE_TIME_FORMAT = 'yyyy-mm-dd hh:nn:ss';
+   REGEX_EMAIL =  '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-\p{Cyrillic}]'+
                '+\.[a-zA-Z0-9-.\p{Cyrillic}]*[a-zA-Z0-9\p{Cyrillic}]+$';
 
 Type
    TRandAttributes= (rdAllChar, rdAlpha, rdNumber, rdEspecial );
    TDateTimeMode = (dtNone, dtBegin, dtEnd);
+
 var
-
+   ApplicationName,
    ApplicationPath,
+   ApplicationLogs: String;
 
-   AppLogsPath,
-   AppConfigFileName,
-   AppLoggerFilename: String;
 
 function  JSONFilter(sJSON: String): String;
 Function  FToStrSQL(Value: Double): String; overload;
@@ -165,9 +164,9 @@ function CountOccurrences(SubStr, S: string): Integer;
 procedure Compressfile(const filename: String);
 procedure DecompressFile(const filename: String);
 
-function CreateTJSONValue(sJSON: String): TJSONValue;
-function CreateTJSONObject(sJSON: String): TJSONObject;
-function CreateTJSONArray(sJSON: String): TJSONArray;
+function CreateTJSONValue(sJSON: String; aEncoding: TEncoding = nil): TJSONValue;
+function CreateTJSONObject(sJSON: String; aEncoding: TEncoding = nil): TJSONObject;
+function CreateTJSONArray(sJSON: String; aEncoding: TEncoding = nil): TJSONArray;
 function JSONArrayToObject(aJSON: TJSONValue; Index: Integer=0): TJSONObject; overload;
 function JSONArrayToObject(aJSON: String; Index: Integer=0): String; overload;
 
@@ -226,6 +225,7 @@ uses
    ,IdMessageBuilder
    ,IdExplicitTLSClientServerBase
    ,uLib.DataModule
+   ,uLib.Common
    ,uLib.Crypt;
 
 function VersionStr(nuVerMayor, nuVerMenor, nuVerRelease: Integer): String;
@@ -384,25 +384,31 @@ end;
 //  JSON: Functions                                //
 //-------------------------------------------------//
 
-function CreateTJSONObject(sJSON: String): TJSONObject;
+function CreateTJSONObject(sJSON: String; aEncoding: TEncoding = nil): TJSONObject;
 Begin
   if sJSON.IsEmpty then
      sJSON:='{}';
-  Result:= TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(sJSON), 0) as TJSONObject;
+  if aEncoding=nil then
+     aEncoding:=TEncoding.UTF8;
+  Result:= TJSONObject.ParseJSONValue(aEncoding.GetBytes(sJSON), 0) as TJSONObject;
 End;
 
-function CreateTJSONvalue(sJSON: String): TJSONValue;
+function CreateTJSONvalue(sJSON: String; aEncoding: TEncoding = nil): TJSONValue;
 Begin
   if sJSON.IsEmpty then
      sJSON:='{}';
-  Result:= TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(sJSON), 0) as TJSONValue;
+  if aEncoding=nil then
+     aEncoding:=TEncoding.UTF8;
+  Result:= TJSONObject.ParseJSONValue(aEncoding.GetBytes(sJSON), 0) as TJSONValue;
 End;
 
-function CreateTJSONArray(sJSON: String): TJSONArray;
+function CreateTJSONArray(sJSON: String; aEncoding: TEncoding = nil): TJSONArray;
 Begin
   if sJSON.IsEmpty then
      sJSON:='[]';
-  Result:= TJSONObject.ParseJSONValue(TEncoding.ANSI.GetBytes(sJSON), 0) as TJSONArray;
+  if aEncoding=nil then
+     aEncoding:=TEncoding.UTF8;
+  Result:= TJSONObject.ParseJSONValue(aEncoding.GetBytes(sJSON), 0) as TJSONArray;
 End;
 
 function JSONArrayToObject(aJSON: TJSONValue; Index: Integer=0): TJSONObject;
@@ -412,7 +418,7 @@ Begin
        If (AJSON Is TJSONArray) And (TJSONArray(AJSON).Count>0) then
           Result:=TJSONArray(AJSON)[Index] As TJSONObject
        else
-          Result:=(AJSON As TJSONObject)
+          Result:=TJSONObject.Create;
      end
   else
      Result:=TJSONObject.Create;
@@ -1777,11 +1783,11 @@ end;
 procedure SaveLogFile(const sMessage: String);
 Var
   FLog: TextFile;
-  sJSON: String;
+  sJSON,fName: String;
 begin
   //-------------------------------------------
-  AssignFile(FLog, AppLogsPath + AppLoggerFilename);
-  if Not FileExists(AppLogsPath  + AppLoggerFilename) then
+  AssignFile(FLog, ApplicationLogs);
+  if Not FileExists(ApplicationLogs) then
     Rewrite(FLog)
   else
     Append(FLog);
@@ -1817,14 +1823,9 @@ begin
   result:=lPath;
 end;
 
-
 initialization
   ApplicationPath:=GetApplicationPath(false);
-  AppLogsPath:=ApplicationPath+PathDelim+'LogFiles'+PathDelim;
-
-  AppConfigFileName:=ChangeFileExt(ExtractFileName(ParamStr(0)),'.cnf');
-  AppLoggerFilename:=ChangeFileExt(ExtractFileName(ParamStr(0)),'.log');
-
+  ApplicationLogs:=ApplicationPath+PathDelim+'logs'+PathDelim;
 finalization
 
 end.

@@ -88,6 +88,7 @@ function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
 procedure SetIdentHeader(TL: TstringList; const dbTable, Id: String);
 
+
 implementation
 
 uses
@@ -104,6 +105,7 @@ uses
     uLib.Auth,
     uLib.Base,
     uLib.Helpers,
+    uLib.Common,
     uLib.DataModule
     ;
 

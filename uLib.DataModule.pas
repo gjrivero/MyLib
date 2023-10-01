@@ -49,13 +49,16 @@ type
 
 var
   dmMain: TdmMain;
-  RDBMSKind: TFDRDBMSKind;
   ADriverVendor: TStringList;
   ADatabaseServer: TStringList;
 
 implementation
 
 {$R *.dfm}
+
+uses
+   uLib.Common;
+
 
 procedure TdmMain.CnxBeforeConnect(Sender: TObject);
 begin

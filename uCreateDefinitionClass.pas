@@ -123,7 +123,7 @@ procedure processSQL(sqlCmd: TStringList; aSave: boolean=false);
 implementation
 
 Uses
-    uLib.DataModule,
+    uLib.Common,
     FireDAC.Stan.Intf;
 
 { TTableDefintion }
@@ -809,7 +809,10 @@ begin
        tSQL.Add('CREATE TRIGGER '+aDateUpd);
        tSQL.Add('BEFORE UPDATE ON '+ASchema+lTableName+'');
        tSQL.Add('BEGIN');
-       tSQL.Add('  UPDATE '+ASchema+lTableName+' SET updatedat=CURRENT_TIMESTAMP;');
+       tSQL.Add('  UPDATE tbl SET tbl.updatedat=CURRENT_TIMESTAMP');
+       tSQL.Add('    FROM '+ASchema+lTableName+' tbl;');
+       tSQL.Add('         INNER JOIN inserted ins');
+       tSQL.Add('         ON (tbl.id=ins.id);');
        tSQL.Add('END;');
      End;
    TFDRDBMSKinds.MYSQL:
@@ -831,11 +834,11 @@ begin
        tSQL.Add('    ON '+ASchema+lTableName+'');
        tSQL.Add('   FOR UPDATE AS');
        tSQL.Add('SET NOCOUNT ON;');
-       tSQL.Add('UPDATE '+ASchema+lTableName);
-       tSQL.Add('   SET updatedat=GETDATE()');
-       tSQL.Add('  FROM inserted');
-       tSQL.Add(' WHERE '+ASchema+lTableName+'.id=inserted.Id;');
-       tSQL.Add('DROP TRIGGER IF EXISTS '+aDateUpd+';');
+       tSQL.Add('UPDATE tbl');
+       tSQL.Add('   SET tbl.updatedat=CURRENT_TIMESTAMP');
+       tSQL.Add('  FROM '+ASchema+lTableName+' tbl');
+       tSQL.Add('       INNER JOIN inserted ins');
+       tSQL.Add('       ON (tbl.id=ins.id);');
        tSQL.Add('--GO');
      End;
    TFDRDBMSKinds.PostgreSQL:
