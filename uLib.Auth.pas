@@ -160,20 +160,14 @@ Var
    I: Integer;
    TL: TstringList;
 begin
-  TL:= TstringList.Create;
   Host_Url:=LowerCase(Request.Host);
   Base_Url:=LowerCase(Request.PathInfo);
-  Tl.Add('Host: '+ Host_Url);
-  Tl.Add('Path: '+Base_Url);
-  // '/api/otp/account/2'
   if Host_Url.Contains('api') then
      // '/otp/account/2'
      MethodIndex:=3
   else
      // '/api/otp/account/2'
      MethodIndex:=4;
-  Tl.SaveToFile('url.txt');
-  Tl.Destroy;
   Method:=LowerCase(GetStr(Base_Url,MethodIndex,'/'));
   DEV_KEY_NAME:=devKey;
   aHeaders:=TStringList.Create;

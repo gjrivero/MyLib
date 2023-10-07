@@ -124,7 +124,7 @@ procedure SaveLogFile(const sMessage: String);
 Function  GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
 Function  SetDefaultLine(MaxFields: Integer; Cdiv: Char=ChDiv): String;
 
-Procedure Descuento( Var BolPor:     String;
+Procedure DiscountAmount( Var BolPor:     String;
                      Var Porcentaje,
                          Descont:    Double;
                          TotalF:     Double;
@@ -171,11 +171,13 @@ function JSONArrayToObject(aJSON: TJSONValue; Index: Integer=0): TJSONObject; ov
 function JSONArrayToObject(aJSON: String; Index: Integer=0): String; overload;
 
 function SetJSONResponse( iStatus: Integer;
-                          const sMessage: string;
-                          aJSON: String=''): TJSONObject; overload;
+                          const sMessage: string): TJSONObject; overload;
 function SetJSONResponse( iStatus: Integer;
                           const sMessage: string;
-                          aJSON: TJSONValue=Nil): TJSONObject; overload;
+                          aJSON: String): TJSONObject; overload;
+function SetJSONResponse( iStatus: Integer;
+                          const sMessage: string;
+                          aJSON: TJSONValue): TJSONObject; overload;
 
 procedure GetFieldsValues( JSON: TJSONObject;
                            var sFields, sValues, sSetVal, sCondition: string;
@@ -363,12 +365,22 @@ begin
 end;
 
 function SetJSONResponse( iStatus: Integer;
+                          const sMessage: string): TJSONObject;
+begin
+  Result:=TJSONObject.Create;
+  SetJSON(Result,['status','message'],
+                 [iStatus,sMessage]);
+end;
+
+function SetJSONResponse( iStatus: Integer;
                           const sMessage: string;
                           aJSON: String): TJSONObject;
 begin
   Result:=TJSONObject.Create;
-  SetJSON(Result,['status','message','response'],
-                 [iStatus,sMessage,aJSON]);
+  SetJSON(Result,['status','message'],
+                 [iStatus,sMessage]);
+  if (aJSON<>'') then
+     SetJSON(Result,['response'],[aJSON]);
 end;
 
 function SetJSONResponse( iStatus: Integer;
@@ -376,8 +388,10 @@ function SetJSONResponse( iStatus: Integer;
                           aJSON: TJSONValue): TJSONObject;
 begin
   Result:=TJSONObject.Create;
-  SetJSON(Result,['status','message','response'],
-                 [iStatus,sMessage,aJSON]);
+  SetJSON(Result,['status','message'],
+                 [iStatus,sMessage]);
+  if (aJSON<>Nil) and Assigned(aJSON) then
+     SetJSON(Result,['response'],[aJSON]);
 end;
 
 //-------------------------------------------------//
@@ -768,7 +782,7 @@ Begin
      Result:=A/B;
 End;
 
-Procedure Descuento( Var BolPor:     String;
+Procedure DiscountAmount( Var BolPor:     String;
                      Var Porcentaje,
                          Descont:    Double;
                          TotalF:     Double;
@@ -1783,7 +1797,7 @@ end;
 procedure SaveLogFile(const sMessage: String);
 Var
   FLog: TextFile;
-  sJSON,fName: String;
+  sJSON: String;
 begin
   //-------------------------------------------
   AssignFile(FLog, ApplicationLogs);
