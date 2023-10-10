@@ -80,7 +80,10 @@ function  GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overloa
 function  GetBool(const sJSON: String; const FieldName: string): boolean; Overload;
 
 function  GetApplicationPath(LocalPath: Boolean): String;
-Procedure StrRemove(var sJSON: String; const FieldName: String);
+
+Procedure JSONRemove( var sJSON: String; const fields: array of string); overload;
+Procedure JSONRemove( var sJSON: String; const FieldName: String); overload;
+Procedure JSONRemove( oJSON: TJSONObject; const fields: array of string); overload;
 
 Procedure SetStr(FT: TDataSet; const FieldName, Value: String); Overload;
 Procedure SetStr(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
@@ -1296,7 +1299,21 @@ Begin
   LB[Index]:=S;
 End;
 
-Procedure StrRemove(var sJSON: String; const FieldName: String);
+Procedure JSONRemove( var sJSON: String;
+                      const fields: array of string);
+var JSON: TJSONObject;
+begin
+  JSON:=CreateTJSONObject(sJSON);
+  if JSON<>Nil then
+     begin
+       for var I := Low(fields) to High(fields) do
+         JSON.RemovePair(fields[I]);
+       sJSON:=JSON.ToString;
+       FreeAndNil(JSON);
+     end;
+end;
+
+Procedure JSONRemove(var sJSON: String; const FieldName: String);
 var JSON: TJSONObject;
 begin
   JSON:=CreateTJSONObject(sJSON);
@@ -1306,6 +1323,14 @@ begin
        sJSON:=JSON.ToString;
        FreeAndNil(JSON);
      end;
+end;
+
+Procedure JSONRemove( oJSON: TJSONObject;
+                     const fields: array of string);
+begin
+  if oJSON<>Nil then
+     for var I := Low(fields) to High(fields) do
+        oJSON.RemovePair(fields[I]);
 end;
 
 function GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
@@ -1727,7 +1752,9 @@ begin
   SSLHandler.Destination:=':25';
   SSLHandler.IPVersion:=Id_IPv4;
   SSLHandler.MaxLineAction:=maException;
-  SSLHandler.SSLOptions.Mode:=sslmUnassigned;
+  //SSLHandler.SSLOptions.Mode:=sslmUnassigned;
+  SSLHandler.SSLOptions.Method:=sslvSSLv23;
+
   try
     SMTP.Host    :=Connection.Values['Host']; // 'smtp.gmail.com';
     SMTP.Port    :=Connection.Values['Port'].ToInteger; // 587;

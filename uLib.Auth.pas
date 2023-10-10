@@ -12,7 +12,7 @@ Const
    ACT_DEFAULT    = 0;
    ACT_SIGNUP     = 1;
    ACT_LOGIN      = 2;
-   ACT_VALIDATE   = 3;
+   ACT_VERIFY     = 3;
 
 Type
    TUserWebAuthenticate = class
@@ -46,6 +46,7 @@ implementation
 
 Uses
     System.Hash,
+    System.StrUtils,
     System.Generics.Collections,
 
     IdHTTPHeaderInfo,
@@ -87,8 +88,8 @@ begin
         if sPath='signup' then
            action:=ACT_SIGNUP
      else
-        if sPath='validate' then
-           action:=ACT_VALIDATE;
+        if sPath='verify' then
+           action:=ACT_VERIFY;
 end;
 
 procedure TUserWebAuthenticate.SetDataSession(const sJSON: String);
@@ -162,7 +163,7 @@ Var
 begin
   Host_Url:=LowerCase(Request.Host);
   Base_Url:=LowerCase(Request.PathInfo);
-  if Host_Url.Contains('api') then
+  if ContainsText(Host_Url,'api') then
      // '/otp/account/2'
      MethodIndex:=3
   else

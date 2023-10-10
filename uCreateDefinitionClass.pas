@@ -1004,7 +1004,7 @@ begin
   sSql:=lSQL.Text;
   if auditTable then
      auditProcTable;
-  if sSql.Contains('updatedat') then
+  if ContainsText(sSql,'updatedat') then
      lastDateProcTable;
 end;
 
