@@ -9,10 +9,11 @@ uses
     System.classes;
 
 Const
-   ACT_DEFAULT    = 0;
-   ACT_SIGNUP     = 1;
-   ACT_LOGIN      = 2;
-   ACT_VERIFY     = 3;
+   ACT_DEFAULT    = -1;
+   ACT_DIAGNOSTIC =  0;
+   ACT_SIGNUP     =  1;
+   ACT_LOGIN      =  2;
+   ACT_VERIFY     =  3;
 
 Type
    TUserWebAuthenticate = class
@@ -81,15 +82,18 @@ procedure TUserWebAuthenticate.GetAction(Const mPath, sPath: String; var action:
 begin
   action:=ACT_DEFAULT;
   // /api/main/login
-  if (GetStr(Base_Url,MethodIndex-1,'/')=mPath) then
-     if sPath='login' then
-        action:=ACT_LOGIN
-     else
-        if sPath='signup' then
-           action:=ACT_SIGNUP
-     else
-        if sPath='verify' then
-           action:=ACT_VERIFY;
+  if sPath='hello' then
+     action:=ACT_DIAGNOSTIC
+  else
+     if (GetStr(Base_Url,MethodIndex-1,'/')=mPath) then
+        if sPath='login' then
+           action:=ACT_LOGIN
+        else
+           if sPath='signup' then
+              action:=ACT_SIGNUP
+           else
+              if sPath='verify' then
+                 action:=ACT_VERIFY;
 end;
 
 procedure TUserWebAuthenticate.SetDataSession(const sJSON: String);
@@ -128,6 +132,8 @@ begin
   APassword:=GetStr(sJSON,SS_PASSWORD);
   //---------------------------------
   case Action of
+   ACT_DIAGNOSTIC:
+     aJSON:='{"valid":true}';
    ACT_SIGNUP,
    ACT_LOGIN:
      Case Action Of
@@ -169,7 +175,11 @@ begin
   else
      // '/api/otp/account/2'
      MethodIndex:=4;
-  Method:=LowerCase(GetStr(Base_Url,MethodIndex,'/'));
+  if ContainsText(Base_Url,'hello') then
+     Method:='hello'
+  else
+     Method:=LowerCase(GetStr(Base_Url,MethodIndex,'/'));
+
   DEV_KEY_NAME:=devKey;
   aHeaders:=TStringList.Create;
   Try

@@ -77,6 +77,10 @@ function ExecTransact( cSQL: TStringList;
                        sDecl: TStringList=nil;
                        sFields: String='';
                        pParams: TFDParams=nil): TJSONObject; Overload;
+function ExecTransact( cSQL: String;
+                       sDecl: String='';
+                       sFields: String='';
+                       pParams: TFDParams=nil): TJSONObject; Overload;
 
 function GetQueryParams(const sCondition: String): String;
 function FieldsString( const fields: array of String; alias: String=''  ): String;
@@ -86,7 +90,6 @@ function SetFDParams( const fldNames: Array Of String;
                       const fldValues: Array Of Variant): TFDParams; overload;
 function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
-procedure SetIdentHeader(TL: TstringList; const dbTable, Id: String);
 
 
 implementation
@@ -628,7 +631,7 @@ begin
           cCmd.AddStrings(sDecl);
        cCmd.Add('  '+IfThen(sDecl<>Nil,',',' ')+'@Error INT=0');
        cCmd.Add('  ,@ErrSeverity int=0');
-       cCmd.Add('  ,@ErrMsg nvarchar(4000);');
+       cCmd.Add('  ,@ErrMsg nvarchar(4000)='''';');
        cCmd.Add('BEGIN TRANSACTION;');
        cCmd.Add('BEGIN TRY');
      end;
@@ -710,7 +713,7 @@ begin
   //if Not aCommit then
      FDM.Cnx.StartTransaction;
   Try
-    FDM.Qry.OpenOrExecute;
+    FDM.Qry.Open;
     Result:=FDM.Qry.AsJSONObject;
     if GetInt(FDM.Qry,'error')<>0 then
        begin
@@ -734,26 +737,7 @@ begin
   cCmd.Destroy;
 End;
 
-procedure SetIdentHeader(TL: TstringList; const dbTable, Id: String);
-var
-   seqName,
-   SingleName: String;
-   c: Integer;
-begin
-   C:=CountOccurrences('.',dbTable)+1;
-   SingleName:=GetStr(dbTable,c,'.');
-   if SingleName.IsEmpty then
-      SingleName:=dbTable;
-   seqName:='seq_'+SingleName;
-
-   TL.Add('IF EXISTS(SELECT name FROM sys.sequences WHERE name='+QuotedStr(seqName)+')');
-   TL.Add('   SELECT @'+Id+'=CAST(current_value AS INT) FROM sys.sequences WHERE name='+QuotedStr(seqName));
-   TL.Add('ELSE');
-   TL.Add('   SELECT @'+Id+'=IDENT_CURRENT(' + QuotedStr(SingleName) + ');');
-end;
-
-function TFDMController.cmdAdd( const dbTableName,
-                            Context: String): TJSONValue;
+function TFDMController.cmdAdd( const dbTableName, Context: String): TJSONValue;
 
   procedure InsTable( iSQL: TStringList;
                       const DBTABLE: String;
@@ -764,22 +748,23 @@ function TFDMController.cmdAdd( const dbTableName,
     sIns: String;
   begin
     sIns:=
-     'INSERT INTO '+DBTABLE+' ('+pNameFlds+')'+#13+
-     '       VALUES ('+pValFlds+')';
+      'INSERT INTO '+DBTABLE+' ('+pNameFlds+')'#13#10;
     Case RDBMSKind Of
      TFDRDBMSKinds.MSSQL:
        begin
+         sIns:=sIns+
+            '       OUTPUT inserted.id'+
+            ', '+GetStr(pNameFlds,1,',').QuotedString+
+            ', '+GetStr(pValFlds,1,',')+#13#10+
+            '         INTO @temptable'#13#10+
+            '       VALUES ('+pValFlds+')';
+
          iSQL.Add(sIns+';');
-         SetIdentHeader(iSQL,DBTABLE,'InsertedId');
-         if TempTable then
-            begin
-              iSQL.Add('INSERT INTO #TempTable (id,field,value)');
-              iSQL.Add('       SELECT @InsertedId,'+GetStr(pNameFlds,1,',').QuotedString+','+
-                                      GetStr(pValFlds,1,',')+';');
-            end;
        end;
      TFDRDBMSKinds.MYSQL:
        begin
+         sIns:=sIns+
+            '       VALUES ('+pValFlds+')';
          iSQL.Add(sIns+';');
          iSQL.Add('SELECT LAST_INSERT_ID() INTO InsertedId;');
          if TempTable then
@@ -791,7 +776,10 @@ function TFDMController.cmdAdd( const dbTableName,
        end;
      TFDRDBMSKinds.PostgreSQL:
        begin
-         iSQL.Add(sIns+' RETURNING id INTO InsertedId;');
+         sIns:=sIns+
+            '       VALUES ('+pValFlds+')'+
+            '       RETURNING id INTO InsertedId;';
+         iSQL.Add(sIns);
          if TempTable then
             begin
               iSQL.Add('INSERT INTO #TempTable (id,field,value)');
@@ -814,21 +802,22 @@ Var
 begin
   sCmd:=TStringList.create;
   //sDcl:=TStringList.create;
+  Case RDBMSKind Of
+    TFDRDBMSKinds.MSSQL:
+        begin
+          sCmd.Add('DECLARE ');
+          sCmd.Add('  @TempTable TABLE (');
+          sCmd.Add('    id INT,');
+          sCmd.Add('    field VARCHAR(30),');
+          sCmd.Add('    value NVARCHAR(MAX)');
+          sCmd.Add('  );');
+          fldsReturn:=
+                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedrows';
+        end;
+  end;
   try
     if Context.StartsWith('[') then
        begin
-         Case RDBMSKind Of
-          TFDRDBMSKinds.MSSQL:
-              begin
-                fldsReturn:=
-                '(SELECT N''{"id":''+cast(@InsertedId as varchar)+''}'') insertedrows';
-                sCmd.Add('CREATE TABLE #TempTable (');
-                sCmd.Add('  id INT,');
-                sCmd.Add('  field VARCHAR(30),');
-                sCmd.Add('  value NVARCHAR(MAX)');
-                sCmd.Add(');');
-              end;
-         end;
          AJSON:=CreateTJSONArray(Context);
          for I := 0 to AJSON.Count-1 do
            begin
@@ -836,37 +825,10 @@ begin
              GetFieldsvalues(JSON,sFields,sValues,sSetVal,sCondition,false);
              InsTable(sCmd,dbTableName,sFields,sValues,True);
            end;
-         Case RDBMSKind Of
-          TFDRDBMSKinds.MSSQL:
-            begin
-              fldsReturn:='(SELECT id, field, value FROM #TempTable FOR JSON AUTO) insertedrows';
-              //sCmd.Add('DROP #TempTable');
-            end;
-         end;
        end
     else
        begin
-         Case RDBMSKind Of
-          TFDRDBMSKinds.MSSQL:
-              begin
-                sCmd.Add('DECLARE ');
-                sCmd.Add('  @InsertedId INT=0;');
-              end;
-          TFDRDBMSKinds.MYSQL,
-          TFDRDBMSKinds.PostgreSQL:
-              sCmd.Add('  InsertedId INT=0;');
-         End;
          GetFieldsvalues(Context,sFields,sValues,sSetVal,sCondition,false);
-         Case RDBMSKind Of
-          TFDRDBMSKinds.MSSQL:
-              begin
-                fldsReturn:=
-                '(SELECT N''{"id":''+cast(@InsertedId as varchar)+''}'') insertedrows';
-              end;
-          TFDRDBMSKinds.MYSQL,
-          TFDRDBMSKinds.PostgreSQL:
-              sCmd.Add('  InsertedId INT=0;');
-         end;
          InsTable(sCmd,dbTableName,sFields,sValues,False);
        end;
     result:= execTrans(sCmd,Nil,fldsReturn,nil);
@@ -990,46 +952,26 @@ function GetData( const sQuery: String;
                   const fldValues: Array of const): TJSONArray; overload;
 Var
    pParams: TFDParams;
-   DMC: TFDMController;
 begin
-  DMC:=TFDMController.Create(dmMain);
   pParams:=SetFDParams(fldNames,fldValues);
   try
-    Result:=DMC.GetRecords(sQuery,pParams);
+    Result:=GetData(sQuery,pParams);
   finally
     pParams.Destroy;
-    DMC.Destroy;
   End;
 end;
 
 function GetData( sQuery: TStrings;
                   pParams: TFDParams=nil): TJSONArray;  overload;
-Var
-   DMC: TFDMController;
 begin
-  DMC:=TFDMController.Create(dmMain);
-  try
-    Result:=DMC.GetRecords(sQuery.Text,pParams);
-  finally
-    DMC.Destroy;
-  end;
+  GetData(sQuery.Text,pParams);
 end;
 
 function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
                   const fldValues: Array of const): TJSONArray;  overload;
-Var
-   pParams: TFDParams;
-   DMC: TFDMController;
 begin
-  DMC:=TFDMController.Create(dmMain);
-  pParams:=SetFDParams(fldNames,fldValues);
-  try
-    Result:=DMC.GetRecords(sQuery.Text,pParams);
-  finally
-    pParams.Destroy;
-    DMC.Destroy;
-  End;
+  GetData(sQuery.Text,fldNames,fldValues);
 end;
 
 function AddData( Const dbTableName: string;
@@ -1130,10 +1072,38 @@ begin
   end;
 end;
 
+function ExecTransact( cSQL: String;
+                       sDecl: String='';
+                       sFields: String='';
+                       pParams: TFDParams=nil): TJSONObject;
+Var
+   DMC: TFDMController;
+   Cmd,
+   Dcl: TStringList;
+begin
+  DMC:=TFDMController.Create(dmMain);
+  Cmd:=TStringList.Create;
+  Cmd.Text:=cSQL;
+  Dcl:=Nil;
+  if sDecl<>'' then
+     begin
+       Dcl:=TStringList.Create;
+       Dcl.Text:=sDecl;
+     end;
+  try
+    result:= DMC.execTrans(Cmd, Dcl, sFields, pParams);
+  finally
+    DMC.Destroy;
+    Cmd.Destroy;
+    if Dcl<>Nil then
+       Dcl.Destroy;
+  end;
+end;
+
 function ExecTransact( cSQL: TStringList;
                        sDecl: TStringList=nil;
                        sFields: String='';
-                       pParams: TFDParams=nil): TJSONObject; Overload;
+                       pParams: TFDParams=nil): TJSONObject;
 Var
    DMC: TFDMController;
 begin

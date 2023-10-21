@@ -42,8 +42,8 @@ Function  FToStrSQL(const Value: String): String; overload;
 Function  StrToReal(St: String): Double;
 Function  StrToInteger(St: String): Integer;
 Function  DeleteLastChar(const S: String; ch: Char): String;
-Function  DateStr(Date: TDateTime): String;
-Function  DateTimeStr(Date: TDateTime; Mode: TDateTimeMode = dtNone): String;
+Function  DateStr(Date: TDateTime=-1): String;
+Function  DateTimeStr(Date: TDateTime=-1; Mode: TDateTimeMode = dtNone): String;
 function  StrToDateTimeFmt(sDateTime: String): TDateTime;
 function  FormatDef(T: Double; DefDecimals: Integer=2): String; Overload;
 function  FormatDef(S: String; DefDecimals: Integer=2): String; Overload;
@@ -365,6 +365,36 @@ begin
   if LCode<>0 then
      Val(AString, LVoidR, LCode);
   Result := LCode = 0;
+end;
+
+function JSONObjectToParams(JSON: TJSONObject): TFDParams;
+Var
+   field,
+   value: String;
+   I: Integer;
+begin
+  result:=Nil;
+  for I := 0 to JSON.count-1 do
+    begin
+      if Result=nil then
+         result:=TFDParams.Create;
+     field:=JSON.Pairs[I].JsonString.Value.ToLower;
+     value:=JSON.Pairs[I].JsonValue.ToString;
+     if Value.StartsWith('"') then
+        begin
+          delete(Value,1,1);
+          delete(Value,Length(Value),1);
+        end;
+      if IsNumeric(value) then
+         begin
+           if ContainsText(value,'.') then
+              result.Add(field,StrToReal(value))
+           else
+              result.Add(field,StrToInteger(value));
+         end
+      else
+        result.Add(field,value);
+    end;
 end;
 
 function SetJSONResponse( iStatus: Integer;
@@ -1103,15 +1133,19 @@ Begin
   Result:=FToStrSQL(StrToReal(Value));
 End;
 
-Function DateStr(Date: TDateTime): String;
+Function DateStr(Date: TDateTime=-1): String;
 Begin
+  if Date=-1 then
+     Date:=Now();
   Result:=FormatDateTime(DATE_FORMAT,Date);
 End;
 
-Function DateTimeStr(Date: TDateTime; Mode: TDateTimeMode = dtNone): String;
+Function DateTimeStr(Date: TDateTime=-1; Mode: TDateTimeMode = dtNone): String;
 var
   fs: TFormatSettings;
 begin
+  if Date=-1 then
+     Date:=Now();
   fs.TimeSeparator := ':';
   fs.DateSeparator := '-';
   case Mode of
@@ -1655,16 +1689,11 @@ begin
   if BaseURI.IsEmpty then
      exit;
   nClient:=TNetHTTPClient.Create(Nil);
-  nClient.Accept := '*/*';
-  nClient.ContentType := 'application/json';
-  nClient.AcceptCharSet := 'utf-8, *;q=0.8';
-  nClient.AllowCookies := true;
+  nClient.ContentType:='application/json';
   nClient.ProtocolVersion:=THTTPProtocolVersion.HTTP_2_0;  //?
 
   nReq:=TNetHTTPRequest.Create(Nil);
   nReq.Client := nClient;
-  nReq.Accept := '*/*';
-  nReq.AcceptCharSet := 'utf-8, *;q=0.8';
 
   sURL:=Trim(BaseURI);
   if (sURL[Length(sURL)]<>'/') then

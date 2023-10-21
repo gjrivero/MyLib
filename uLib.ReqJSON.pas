@@ -63,7 +63,7 @@ begin
   if GetInt(aJSON,'error')=0 then
      result:=SetJSONResponse( 0,
                              'Successfully updated!',
-                              GetStr(aJSON.ToString,'insertedRows'))
+                              GetStr(aJSON.ToString,'insertedrows'))
   else
      result:=SetJSONResponse( -1,
                              GetStr(aJSON,'errormsg'),
