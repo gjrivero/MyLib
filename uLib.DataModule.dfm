@@ -4,6 +4,8 @@ object dmMain: TdmMain
   Height = 204
   Width = 389
   object Cnx: TFDConnection
+    Params.Strings = (
+      'Pooled=True')
     ResourceOptions.AssignedValues = [rvParamCreate, rvMacroCreate, rvMacroExpand, rvParamExpand, rvEscapeExpand, rvKeepConnection]
     LoginPrompt = False
     BeforeConnect = CnxBeforeConnect
