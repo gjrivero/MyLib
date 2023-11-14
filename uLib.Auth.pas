@@ -21,7 +21,7 @@ Type
      function ActionSignUp( const sJSON: String): string;  virtual;
      function OtherActions( action: Integer; const method: string): string; virtual;
      procedure GetAction(Const mPath, sPath: String; var action: Integer); virtual;
-     procedure SetDataSession(const sJSON: String); virtual;
+     procedure SetDataSession(var sJSON: String); virtual;
      procedure CommonAuth( const aMainPath, sJSON: string;
                            UserRoles: TStrings;
                            var aResp: String);
@@ -96,7 +96,7 @@ begin
                  action:=ACT_VERIFY;
 end;
 
-procedure TUserWebAuthenticate.SetDataSession(const sJSON: String);
+procedure TUserWebAuthenticate.SetDataSession(var sJSON: String);
 begin
   {}
 end;

@@ -39,7 +39,7 @@ var
 function  JSONFilter(sJSON: String): String;
 Function  FToStrSQL(Value: Double): String; overload;
 Function  FToStrSQL(const Value: String): String; overload;
-Function  StrToReal(St: String): Double;
+Function  StrToReal(const St: String): Double;
 Function  StrToInteger(St: String): Integer;
 Function  DeleteLastChar(const S: String; ch: Char): String;
 Function  DateStr(Date: TDateTime=-1): String;
@@ -162,7 +162,6 @@ function LoadResourceHTML( const RName: PCHAR; RType: PCHAR = RT_RCDATA ): Strin
 function StringToHex(const S: String): String;
 function HexToString(const S: String): String;
 function StreamToString(Stream: TStream; Encoding: TEncoding=nil): string;
-function CountOccurrences(SubStr, S: string): Integer;
 
 procedure Compressfile(const filename: String);
 procedure DecompressFile(const filename: String);
@@ -274,16 +273,6 @@ begin
   ASequence:=CharSetToString(ACharSequence);
   for C1 := 1 to ALength do
     result[C1] := ASequence[Random(Length(ASequence))+1];
-end;
-
-function CountOccurrences(SubStr, S: string): Integer;
-var
-  I: Integer;
-begin
-  Result := 0;
-  for I := 1 to Length(S) do
-    if S[I] = SubStr then
-      Inc(Result);
 end;
 
 function AmpFilter(sVal: String): String;
@@ -730,24 +719,17 @@ Begin
   Result:=GoodReal(StrToReal(S),defDec);
 End;
 
-Function StrToReal(St: String): Double;
+Function StrToReal(const St: String): Double;
 Var
-  S: String;
-  Valor: Double;
-  lastCh,
-  locMilSep,
-  locDecSep: Char;
-  I,
-  Commas,
-  Points:    Integer;
+   Valor:    Extended;
+   I,
+   Commas,
+   Points:    Integer;
+   S:         String;
 Begin
-  St:=Trim(St);
-  If St='' Then
-     St:='0';
-  S:='';
   Points:=0;
   Commas:=0;
-  lastCh:=#0;
+  S:='';
   For I:=1 To Length(St) Do
    If CharInSet(St[I],['0'..'9','.',',','-','+','E']) Then
       Case St[I] Of
@@ -755,48 +737,40 @@ Begin
       '-','+','E': S:=S+St[I];
         '.':    Begin
                   S:=S+St[I];
-                  LastCh:='.';
                   Inc(Points);
                 End;
         ',':    Begin
                   S:=S+St[I];
-                  LastCh:=',';
                   Inc(Commas);
                 End;
       End;
-  LocDecSep:='.';
-  LocMilSep:=',';
-  If ((Points>Commas) And (Commas>0)) Or (LastCh=',') Then
-     Begin
-       LocDecSep:=',';
-       LocMilSep:='.';
-     End;
-  If (Commas>Points) And (Points=0) Then
-     Begin
-       I:=1;
-       While I<Commas Do
-        Begin
-          Delete(S,Pos(',',S),1);
-          Inc(I);
-        End;
-     End;
-  If (Points>Commas) And (Commas=0) Then
-     Begin
-       I:=1;
-       While I<Points Do
-        Begin
-          Delete(S,Pos('.',S),1);
-          Inc(I);
-        End;
-     End;
-  While Pos(LocMilSep,S)>0 Do
-   Delete(S,Pos(LocMilSep,S),1);
-  If (FormatSettings.DecimalSeparator<>LocDecSep) Then
-     S:=ReplaceStr(S,LocDecSep,FormatSettings.DecimalSeparator);
+  if (Points>0) or (Commas>0) then
+     begin
+       if (Points>Commas) then
+          begin
+            If (Points=1) then
+               S:=ReplaceStr(S,'.',FormatSettings.DecimalSeparator)
+            else
+               begin
+                 S:=ReplaceStr(S,'.','');
+                 S:=ReplaceStr(S,',',FormatSettings.DecimalSeparator);
+               end;
+          end
+       else
+          begin
+            if Commas=1 then
+               S:=ReplaceStr(S,',',FormatSettings.DecimalSeparator)
+            else
+               begin
+                 S:=ReplaceStr(S,',','');
+                 S:=ReplaceStr(S,'.',FormatSettings.DecimalSeparator);
+               end;
+          end;
+     end;
   if S='' then
      S:='0';
   Try
-    Valor:=StrToFloatDef(S,0);
+    Valor:=StrToFloat(S);
   Except
     Valor:=0;
   End;

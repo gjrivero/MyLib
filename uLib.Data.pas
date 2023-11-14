@@ -41,6 +41,11 @@ function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
                   const fldValues: Array of const): TJSONArray; Overload;
 
+function GetData( const sTblName: String;
+                  sfields: String;
+                  sCondition: String='';
+                  sOrder: string=''): TJSONArray; overload;
+
 function AddData( const dbTableName: String;
                         Context: TJSONValue): TJSONValue; Overload;
 function AddData( const dbTableName,
@@ -91,7 +96,6 @@ function SetFDParams( const fldNames: Array Of String;
 function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
 
-
 implementation
 
 uses
@@ -99,6 +103,7 @@ uses
     System.StrUtils,
     System.IOUtils,
     System.Math,
+    System.Net.URLClient,
     Datasnap.DSSession,
     Data.DB,
     Data.DBXPlatform,
@@ -812,7 +817,7 @@ begin
           sCmd.Add('    value NVARCHAR(MAX)');
           sCmd.Add('  );');
           fldsReturn:=
-                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedrows';
+                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedRows';
         end;
   end;
   try
@@ -904,7 +909,9 @@ end;
 
 function TFDMController.GetRecords(Const sQuery: String; pParams: TFDParams=Nil): TJSONArray;
 Var aHeader: TStringList;
+   sWhere: String;
 begin
+  sWhere:=getQueryParams('');
   aHeader:=TStringList.Create;
   SetHeader(aHeader);
   FDM.Qry.SQL.Clear;
@@ -964,14 +971,36 @@ end;
 function GetData( sQuery: TStrings;
                   pParams: TFDParams=nil): TJSONArray;  overload;
 begin
-  GetData(sQuery.Text,pParams);
+  result:=GetData(sQuery.Text,pParams);
 end;
 
 function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): TJSONArray;  overload;
+                  const fldValues: Array of const): TJSONArray; overload;
 begin
-  GetData(sQuery.Text,fldNames,fldValues);
+  result:=GetData(sQuery.Text,fldNames,fldValues);
+end;
+
+function GetData( const sTblName: String;
+                  sfields: String;
+                  sCondition: String='';
+                  sOrder: string=''): TJSONArray; overload;
+var
+  sQry,
+  sWhere: String;
+begin
+  if sfields='' then
+     sfields:='*';
+  sWhere:=getQueryParams(sCondition);
+  sQry:=
+    'SELECT '+sfields.ToLower+#13+
+    '  FROM '+sTblName.ToLower+' {IF MSSQL} WITH (NOLOCK) {fi} '#13;
+  if (sWhere<>'') then
+     sQry:=sQry+' WHERE '+sWhere+#13;
+  if sOrder<>'' then
+     sQry:=sQry+' ORDER BY '+sOrder;
+  sQry:=sQry+';';
+  Result:= GetData(sQry);
 end;
 
 function AddData( Const dbTableName: string;
@@ -1021,10 +1050,12 @@ function UpdData( const dbTableName: String;
                         Condition: String=''): TJSONValue; Overload;
 Var
    DMC: TFDMController;
+   sWhere: String;
 begin
+  sWhere:=getQueryParams(Condition);
   DMC:=TFDMController.Create(dmMain);
   try
-    Result:=DMC.cmdUpd(dbTableName,Context.ToString,Condition);
+    Result:=DMC.cmdUpd(dbTableName,Context.ToString,sWhere);
   finally
     DMC.Destroy;
   end;
@@ -1034,10 +1065,12 @@ function UpdData( const dbTableName, Context: String;
                         Condition: String=''): TJSONValue; Overload;
 Var
    DMC: TFDMController;
+   sWhere: String;
 begin
+  sWhere:=getQueryParams(Condition);
   DMC:=TFDMController.Create(dmMain);
   try
-    Result:=DMC.cmdUpd(dbTableName,Context,Condition);
+    Result:=DMC.cmdUpd(dbTableName,Context,sWhere);
   finally
     DMC.Destroy;
   end;
@@ -1047,14 +1080,17 @@ function UpdData( const dbTableName: String;
                   const fldNames:  Array of String;
                   const fldValues: Array of const;
                         Condition: String=''): TJSONValue; Overload;
-var Context: string;
+var
+   Context: string;
    DMC: TFDMController;
+   sWhere: String;
 begin
+  sWhere:=getQueryParams(Condition);
   DMC:=TFDMController.Create(dmMain);
   Context:='{}';
   SetJSON(Context,fldNames,fldValues);
   try
-    Result:=DMC.cmdUpd(dbTableName,Context,Condition);
+    Result:=DMC.cmdUpd(dbTableName,Context,sWhere);
   finally
     DMC.Destroy;
   end;
@@ -1063,10 +1099,12 @@ end;
 function DelData( Const dbTableName, condition: String): TJSONObject;
 Var
    DMC: TFDMController;
+   sWhere: String;
 begin
+  sWhere:=getQueryParams(Condition);
   DMC:=TFDMController.Create(dmMain);
   try
-    Result:= DMC.cmdDel(dbTableName,condition);
+    Result:= DMC.cmdDel(dbTableName,sWhere);
   finally
     DMC.Destroy;
   end;
@@ -1193,6 +1231,7 @@ begin
      result:=GetInt(JSON,'db_exists')>0;
   JSON.Destroy;
 end;
+
 
 
 initialization

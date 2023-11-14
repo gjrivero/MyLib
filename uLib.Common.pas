@@ -25,18 +25,20 @@ const
    SS_PHONE       = 'phone';
    SS_BRANCH      = 'branch';
    SS_TOKENID     = 'tokenid';
+
    ROLE_ADMIN     = 'admin';
    ROLE_APPS      = 'apps';
    ROLE_STANDARD  = 'standard';
 
 var
-  db_MAIN,
-  db_CUST,
-  ActiveMain,
-  ActiveCustomer,
-  DefConnection: String;
-  ACustomerList: TStringList;
-  RDBMSKind: TFDRDBMSKind;
+   db_MAIN,
+   db_CUST,
+   ActiveMain,
+   ActiveCustomer,
+   DefConnection: String;
+   ACustomerList: TStringList;
+   RDBMSKind: TFDRDBMSKind;
+
 
 implementation
 
