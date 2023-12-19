@@ -182,6 +182,7 @@ begin
 
   DEV_KEY_NAME:=devKey;
   aHeaders:=TStringList.Create;
+  TL:=TstringList.Create;
   Try
    with TIdHTTPAppRequest(Request).GetRequestInfo Do
     for I:= 0 to RawHeaders.Count - 1 do
@@ -190,12 +191,16 @@ begin
         aName := GetStr(sHeader,1,':');
         aValue:= GetStr(sHeader,2,':');
         aHeaders.AddPair(aName,aValue );
+        Tl.add(aName+': '+ aValue);
       end;
     APIKey:=aHeaders.Values[DEV_KEY_NAME];
     JSONBody:= TIdHTTPAppRequest(Request).Content;
+    Tl.add(APIKey);
+    Tl.add(JSONBody);
   Finally
     aHeaders.Destroy;
   End;
+  Tl.Destroy;
 end;
 
 end.

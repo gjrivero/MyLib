@@ -3,14 +3,11 @@ unit uLib.Crypt;
 interface
 
 uses
-  IdHMAC,
-  DECCipherBase,
-  REST.Types,
-  System.Classes,
-  System.Types,
-  System.SysUtils,
-  System.JSON,
-  System.Generics.Collections;
+   IdHMAC
+  ,DECCipherBase
+  ,REST.Types
+  ,System.SysUtils
+  ;
 
 type
   TIdHMACClass = class of TIdHMAC;
@@ -46,20 +43,12 @@ Uses
     System.Hash,
     System.Math,
     System.UITypes,
-    System.StrUtils,
-    System.Variants,
     System.NetEncoding,
 
-    uLib.Base,
-    DECTypes,
     DECCiphers,
-    DECCipherModes,
 
     IdGlobal,
-    IdHMACSHA1,
-    IdCoderMIME,
-
-    WinApi.Windows;
+    IdHMACSHA1;
 
 
 function EqualHashString(const Source, Target: String): boolean;
@@ -158,6 +147,7 @@ Const
    BLOCK_SIZE = 128;
    BSIZE = (BLOCK_SIZE div 8);
 var
+  Cipher: TCipher_AES;
   aReq,
   Output: TBytes;
   I,l,Pad: Integer;
@@ -187,7 +177,7 @@ begin
     aReq := aReq+[Pad];
   //-----------------------------
   Output := [];
-  var Cipher:=TCipher_AES.Create;
+  Cipher:=TCipher_AES.Create;
   try
     try
       Cipher.Mode := cmMode;

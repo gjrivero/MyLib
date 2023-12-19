@@ -87,14 +87,17 @@ function ExecTransact( cSQL: String;
                        sFields: String='';
                        pParams: TFDParams=nil): TJSONObject; Overload;
 
-function GetQueryParams(const sCondition: String): String;
 function FieldsString( const fields: array of String; alias: String=''  ): String;
 function GetDriverID(CnxDriver: String): TFDRDBMSKind;
 function DatabaseExists( const nameDB: String): boolean;
-function SetFDParams( const fldNames: Array Of String;
+{function SetFDParams( const fldNames: Array Of String;
                       const fldValues: Array Of Variant): TFDParams; overload;
+}
 function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
+function SQLiteSetPassword( Const sNewPass, sOldPass: String): Integer;
+function SQLiteSetCrypt(const sPassword: string; encrypt: Boolean): Integer;
+function SQLiteGetCrypt( const sPassword: String; var sCrypted: String): Integer; // SqLite
 
 implementation
 
@@ -140,6 +143,9 @@ type
     function execTrans( cSQL, sDecl: TStringList;
                         sFields: String;
                         pParams: TFDParams): TJSONObject;
+    function cmdSetPass( const sNewPass, sOldPass: String): Integer;
+    function cmdSetCrypt( const sPassword: string; encrypt: Boolean): Integer;
+    function cmdGetCrypt( const sPassword: String; var sCrypted: String): Integer; // SqLite
     procedure SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
   public
     { Public declarations }
@@ -163,131 +169,11 @@ begin
       2: T:=IfThen(CnxDriver.ToUpper='MSSQL',TFDRDBMSKinds.MSSQL,0);
       3: T:=IfThen(CnxDriver.ToUpper='MYSQL',TFDRDBMSKinds.MySQL,0);
       4: T:=IfThen(CnxDriver.ToUpper='PG',TFDRDBMSKinds.PostgreSQL,0);
+      5: T:=IfThen(CnxDriver.ToUpper='SQLITE',TFDRDBMSKinds.SQLite,0);
      end;
      Inc(i);
   until (I>7) Or (T<>TFDRDBMSKinds.Unknown);
   result:=t;
-end;
-
-function getQueryParams(const sCondition: String): String;
-const
-   OPERATORS: Array[0..6] Of String=
-      ('>=','<=','!=','>','<','=','#');
-
-  procedure setCompare(aExpr: String; var sWhere: String );
-  var
-     aField,
-     aValue: String;
-     I: Integer;
-  begin
-    if aExpr.IsEmpty then
-       exit;
-    for I := 0 to High(OPERATORS) do
-      begin
-        var sOp:=OPERATORS[I];
-        var P:=Pos(sOp,aExpr);
-        if (P>0) then
-           begin
-             aField:=Trim(Copy(aExpr,1,P-1));
-             aValue:=Trim(Copy(aExpr,P+Length(sOp),Length(aExpr)));
-             if aValue<>'' then
-                begin
-                  if (aValue.StartsWith('0') or
-                     not IsNumeric(aValue)) And
-                     not aValue.StartsWith('''') then
-                     aValue:=aValue.QuotedString;
-                  sWhere:= sWhere+ifThen(sWhere<>'',' AND ',' ')+
-                           '('+aField.ToLower+sOp+aValue+')';
-                  break;
-                end;
-           end;
-      end;
-  end;
-
-Var
-  metaData: TDSInvocationMetadata;
-  aExpr,
-  sWhere: String;
-  I: Integer;
-begin
-  metaData := GetInvocationMetadata;
-  sWhere:=sCondition;
-  for i := 0 to Pred(metaData.QueryParams.Count) do
-   begin
-     aExpr:=metaData.QueryParams[i];
-     setCompare(aExpr,sWhere);
-   end;
-  Result:=Trim(sWhere);
-end;
-
-function setQueryPaged(Const dbTable, sFields: String;
-                          sWhere: String='';
-                          sOrderBy: String='';
-                          fromRow:  integer=1;
-                          Rows: Integer=0): String;
-
-  function getFieldsAs(sFields: String): String;
-  Var St,S: String;
-      P: Integer;
-  begin
-    St:='';
-    while sFields<>'' do
-     begin
-       S:=GetStr(sFields,1,',');
-       P:=Pos(',',sFields);
-       if P=0 then
-          P:=Length(S);
-       Delete(sFields,1,P+1);
-       if (S.CountChar(' ')>0) then
-          begin
-            if Pos(' as ',S)>0 then
-               S:=GetStr(S,3,' ')
-            else
-               S:=GetStr(S,2,' ');
-            //S:=Trim(Copy(S,Pos(sDiv,S)+Length(sDiv)+1,Length(S)));
-          end;
-       St:=St+','+S;
-     end;
-    if Copy(St,1,1)=',' then
-       Delete(St,1,1);
-    Result:=St;
-  end;
-
-var
-   sFlds,
-   stCmd: String;
-begin
-  sFlds:=sFields.ToLower;
-  if sFlds='' then
-     sFlds:='*';
-  {Case RDBMSKind of
-   TFDRDBMSKinds.PostgreSQL:  ;
-   TFDRDBMSKinds.Oracle:      ;
-   TFDRDBMSKinds.MSSQL: sCmd.Add('IF (@@ROWCOUNT=0)');
-  End;}
-  stCmd:=
-    ';WITH MyCTE AS '#13+
-    '  (SELECT '+sFlds+', ROW_NUMBER() OVER (ORDER BY ';
-  if (sOrderBy<>'') then
-     stCmd:=stCmd+sOrderBy+')'
-  else
-     stCmd:=stCmd+'@@ROWCOUNT)';
-  stCmd:=stCmd+' AS ROWNUM'#13+
-    '     FROM '+dbTable+' WITH (NOLOCK)'#13;
-  If (sWhere<>'') Then
-     stCmd:=stCmd+'    WHERE '+sWhere;
-  sFlds:=getFieldsAs(sFlds);
-
-  stCmd:=stCmd+')'#13+
-    ' SELECT '+sFlds+','#13+
-    '        (SELECT MAX(ROWNUM)'#13+
-    '           FROM myCTE WITH (NOLOCK)) AS TOTALROWS, ROWNUM AS LASTROW'#13+
-    '   FROM myCTE WITH (NOLOCK)'#13;
-  if Rows>0 then
-     stCmd:=stCmd+
-    '  WHERE RowNum BETWEEN '+IntToStr(fromRow)+' AND '+
-             IntToStr(FromRow+Rows-1);
-  result:=stCmd+';';
 end;
 
 function sqlWhere( const fldNames:  Array of String;
@@ -387,6 +273,7 @@ begin
   result:=trimS(sFields);
 end;
 
+(*
 function SetFDParams( const fldNames: Array Of String;
                       const fldValues: Array Of Variant): TFDParams; overload;
 Var
@@ -402,6 +289,7 @@ Begin
      result.Add(fname,fldValues[I]);
    End;
 end;
+*)
 
 function SetFDParams( const fldNames:  Array of String;
                       const fldValues: Array of Const): TFDParams; overload;
@@ -424,10 +312,15 @@ begin
       vtCurrency: result.Add(fName,fldValues[I].VExtended^);
       vtPChar: result.Add(fName,UnicodeString(fldValues[I].VPChar^));
       vtPWideChar: result.Add(fName,fldValues[I].VPWideChar^);
-      vtString: result.Add(fName,fldValues[I].VString^).Size:=MaxInt;
-      vtWideString: result.Add(fName,WideString(fldValues[I].VWideString)).Size:=MaxInt;
-      vtAnsiString: result.Add(fName,UnicodeString(AnsiString(fldValues[I].VAnsiString))).Size:=MaxInt;
-      vtUnicodeString: result.Add(fName,UnicodeString(fldValues[I].VUnicodeString)).Size:=MaxInt;
+
+      vtString: result.Add( fName,fldValues[I].VString^).Size:=
+                            Length(fldValues[I].VString^);
+      vtWideString: result.Add( fName,WideString(fldValues[I].VWideString)).Size:=
+                                Length(WideString(fldValues[I].VWideString));
+      vtAnsiString: result.Add(fName, AnsiString(fldValues[I].VAnsiString)).Size:=
+                                      Length(AnsiString(fldValues[I].VAnsiString));
+      vtUnicodeString: result.Add( fName,UnicodeString(fldValues[I].VUnicodeString)).Size:=
+                                   Length(UnicodeString(fldValues[I].VUnicodeString));
      end;
    end;
 end;
@@ -628,6 +521,14 @@ begin
   cCmd:=TStringList.Create;
   SetHeader(cCmd,true);
   Case RDBMSKind of
+   TFDRDBMSKinds.SQLite:
+     begin
+       cCmd.Add('DECLARE ');
+       if sDecl<>Nil then
+          cCmd.AddStrings(sDecl);
+       cCmd.Add('  '+IfThen(sDecl<>Nil,',',' ')+'@Error INT=0');
+       cCmd.Add('BEGIN TRANSACTION;');
+     end;
    TFDRDBMSKinds.MSSQL:
      begin
        cCmd.Add('SET TRANSACTION ISOLATION LEVEL READ COMMITTED;');
@@ -662,6 +563,18 @@ begin
   cCmd.AddStrings(cSQL);
   //--------------------------------
   Case RDBMSKind of
+   TFDRDBMSKinds.SQLite:
+     begin
+       cCmd.Add('  IF @ERROR>0');
+       cCmd.Add('  BEGIN');
+       cCmd.Add('    ROLLBACK;');
+       cCmd.Add('    SELECT @ErrMsg=''ERROR [''+CAST(@ERROR AS VARCHAR(5))+''] IN TRASACTION'';');
+       cCmd.Add('    SELECT @ERROR error, @ErrMsg errmsg;');
+       cCmd.Add('    RAISERROR(@ErrMsg, @ERROR,1);');
+       cCmd.Add('  END;');
+       cCmd.Add('COMMIT TRANSACTION;');
+       cCmd.Add('SELECT @ERROR error'+ifThen(sFields<>'',', '+sFields,'')+';');
+     end;
    TFDRDBMSKinds.MSSQL:
      begin
        cCmd.Add('  IF @ERROR>0');
@@ -755,6 +668,17 @@ function TFDMController.cmdAdd( const dbTableName, Context: String): TJSONValue;
     sIns:=
       'INSERT INTO '+DBTABLE+' ('+pNameFlds+')'#13#10;
     Case RDBMSKind Of
+     TFDRDBMSKinds.SQLite:
+       begin
+         sIns:=sIns+
+            '       OUTPUT inserted.id'+
+            ', '+GetStr(pNameFlds,1,',').QuotedString+
+            ', '+GetStr(pValFlds,1,',')+#13#10+
+            '         INTO @temptable'#13#10+
+            '       VALUES ('+pValFlds+')';
+
+         iSQL.Add(sIns+';');
+       end;
      TFDRDBMSKinds.MSSQL:
        begin
          sIns:=sIns+
@@ -808,6 +732,17 @@ begin
   sCmd:=TStringList.create;
   //sDcl:=TStringList.create;
   Case RDBMSKind Of
+    TFDRDBMSKinds.SQLite:
+        begin
+          sCmd.Add('DECLARE ');
+          sCmd.Add('  @TempTable TABLE (');
+          sCmd.Add('    id INT,');
+          sCmd.Add('    field VARCHAR(30),');
+          sCmd.Add('    value NVARCHAR(MAX)');
+          sCmd.Add('  );');
+          fldsReturn:=
+                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedRows';
+        end;
     TFDRDBMSKinds.MSSQL:
         begin
           sCmd.Add('DECLARE ');
@@ -911,7 +846,7 @@ function TFDMController.GetRecords(Const sQuery: String; pParams: TFDParams=Nil)
 Var aHeader: TStringList;
    sWhere: String;
 begin
-  sWhere:=getQueryParams('');
+  //sWhere:=getQueryParams('');
   aHeader:=TStringList.Create;
   SetHeader(aHeader);
   FDM.Qry.SQL.Clear;
@@ -937,6 +872,223 @@ begin
      Result:=FDM.Qry.AsJSONArray();
 end;
 
+function TFDMController.cmdSetPass( Const sNewPass, sOldPass: String): Integer;
+begin
+  try
+    FDM.SQLiteSecurity.Password :=
+        FDM.Cnx.Params.Values['Encrypt']+':'+sOldPass;
+    FDM.SQLiteSecurity.ToPassword :=
+        FDM.Cnx.Params.Values['Encrypt']+':'+sNewPass;
+    FDM.SQLiteSecurity.ChangePassword;
+    result:=DB_SUCCESSFUL;
+  except
+    result:=DB_PASSWORD_ERROR;
+  end;
+end;
+
+function TFDMController.cmdSetCrypt(const sPassword: string; encrypt: Boolean): Integer;
+begin
+  With FDM Do
+   begin
+     Cnx.Connected:=false;
+     try
+       SQLiteSecurity.Database:= Cnx.Params.Database;
+       //SQLITE_CRYPT_ALGO+':' +SQLITE_PASSWORD;
+       SQLiteSecurity.Password:= Cnx.Params.Values['Encrypt']+':'+
+                                      sPassword;
+       if encrypt then
+          begin
+            SQLiteSecurity.SetPassword;
+          end
+       else
+          SQLiteSecurity.RemovePassword;
+       result:=DB_SUCCESSFUL;
+     except
+       result:=DB_PASSWORD_ERROR;
+     end;
+   end;
+end;
+
+function TFDMController.cmdGetCrypt( const sPassword: String; var sCrypted: String): Integer; // SqLite
+begin
+  With FDM Do
+   begin
+     Cnx.Connected:=false;
+     try
+       SQLiteSecurity.Database:=
+           Cnx.Params.Database;
+       SQLiteSecurity.Password:=
+           Cnx.Params.Values['Encrypt']+':'+sPassword;
+       sCrypted := SQLiteSecurity.CheckEncryption;
+       result:=DB_SUCCESSFUL;
+     except
+       result:=DB_CONNECTION_ERROR;
+     end;
+   end;
+end;
+
+function setQueryPaged(Const dbTable, sFields, sWhere: String): String;
+
+  function getFieldsAs(sFields: String): String;
+  Var
+      St,S: String;
+      P: Integer;
+  begin
+    St:='';
+    while sFields<>'' do
+     begin
+       S:=GetStr(sFields,1,',');
+       P:=Pos(',',sFields);
+       if P=0 then
+          P:=Length(S);
+       Delete(sFields,1,P+1);
+       if (S.CountChar(' ')>0) then
+          begin
+            if Pos(' as ',S)>0 then
+               S:=GetStr(S,3,' ')
+            else
+               S:=GetStr(S,2,' ');
+            //S:=Trim(Copy(S,Pos(sDiv,S)+Length(sDiv)+1,Length(S)));
+          end;
+       St:=St+','+S;
+     end;
+    if Copy(St,1,1)=',' then
+       Delete(St,1,1);
+    Result:=St;
+  end;
+
+  procedure setCompare( aExpr: String;
+                        var sWhere, sOrderby: String;
+                        var pagesize, page, limit: Integer );
+  const
+      OPERATORS: Array[0..6] Of String=
+                  ('>=','<=','!=','>','<','=','|');
+  var
+     aField,
+     aValue: String;
+     I: Integer;
+  begin
+    if aExpr.IsEmpty then
+       exit;
+    for I := 0 to High(OPERATORS) do
+      begin
+        var sOp:=OPERATORS[I];
+        var P:=Pos(sOp,aExpr);
+        if (P>0) then
+           begin
+             aField:=Trim(Copy(aExpr,1,P-1)).ToLower;
+             aValue:=Trim(Copy(aExpr,P+Length(sOp),Length(aExpr)));
+             if (aField='limit') then
+                limit:=StrToInteger(aValue)
+             else
+             if (aField='page') then
+                page:=StrToInteger(aValue)
+             else
+             if (aField='pagesize') then
+                pageSize:=StrToInteger(aValue)
+             else
+             if (aField='order') then
+                sOrderBy:=aValue
+             else
+                begin
+                  Var lExpr:='';
+                  if (Pos('|',aValue)>0) then
+                     begin
+                       var lValue:=aValue;
+                       var tExpr:='';
+                       while lValue<>'' do
+                        begin
+                          var T:=Pos('|',lValue)-1;
+                          if T<=0 then
+                             T:=Length(lValue);
+                          var sValue:=Copy(lValue,1,T);
+                          Delete(lValue,1,Length(sValue)+1);
+
+                          if (sValue.StartsWith('0') or
+                             not IsNumeric(sValue)) And
+                             not sValue.StartsWith('''') then
+                             sValue:=sValue.QuotedString;
+                          tExpr:= tExpr+ifThen(tExpr<>'',' OR ',' ')+
+                             '('+aField.ToLower+'='+sValue+')';
+                        end;
+                       lExpr:=trim(tExpr);
+                     end
+                  else
+                     begin
+                       if (aValue.StartsWith('0') or
+                          not IsNumeric(aValue)) And
+                          not aValue.StartsWith('''') then
+                          aValue:=aValue.QuotedString;
+                       lExpr:=aField.ToLower+sOp+aValue;
+                     end;
+                  if Not lExpr.IsEmpty then
+                     sWhere:= sWhere+ifThen(sWhere<>'',' AND ',' ')+
+                             '('+lExpr+')';
+                  break;
+                end;
+           end;
+      end;
+  end;
+
+var
+   metaData: TDSInvocationMetadata;
+   stCmd: TstringList;
+   sFlds,
+   lWhere,
+   sOrderBy: String;
+   I,
+   Page,
+   Limit,
+   PageSize: Integer;
+begin
+  metaData := GetInvocationMetadata;
+  lWhere:=sWhere;
+  Page:=0;
+  Limit:=0;
+  PageSize:=0;
+  for i := 0 to Pred(metaData.QueryParams.Count) do
+   begin
+     setCompare(metaData.QueryParams[i],lWhere,sOrderby,pagesize,page,Limit);
+   end;
+  sFlds:=sFields.ToLower;
+  if sFlds='' then
+     sFlds:='*';
+  if Limit>0 then
+     sFlds:='top '+limit.ToString+' '+sFlds;
+  //sFlds:=getFieldsAs(sFlds);    // Alias
+  stCmd:=TstringList.Create;
+  if (PageSize>0) and (Page>0) then
+     begin
+       if (sOrderBy='') then
+          sOrderBy:='@@ROWCOUNT';
+       stCmd.Add('DECLARE');
+       stCmd.Add('  @page INT='+Page.ToString+',');
+       stCmd.Add('  @pagesize INT='+PageSize.ToString+';');
+       stCmd.Add(';WITH MyCTE AS');
+       stCmd.Add('  (SELECT '+sFlds+', ROW_NUMBER() OVER (ORDER BY '+sOrderBy+') row_num');
+       stCmd.Add('     FROM '+dbTable+' WITH (NOLOCK)');
+       If (lWhere<>'') Then
+       stCmd.Add('    WHERE '+lWhere);
+       stCmd.Add('  )');
+       stCmd.Add('SELECT '+sFlds+'');
+       stCmd.Add('  FROM myCTE WITH (NOLOCK)');
+       stCmd.Add(' WHERE (row_num>=(@page-1)*@pagesize+1) AND ');
+       stCmd.Add('       (row_num<=@page*@pagesize)');
+     end
+  else
+     begin
+       stCmd.Add('SELECT '+sFlds+' ');
+       stCmd.Add('  FROM '+dbTable+' WITH (NOLOCK)');
+       If (lWhere<>'') Then
+       stCmd.Add(' WHERE '+lWhere);
+       if (sOrderBy<>'') then
+       stCmd.Add(' ORDER BY '+sOrderBy);
+     end;
+  result:=stCmd.Text+';';
+  stCmd.Destroy;
+end;
+
+
 //-------------------------------------------------------
 //
 //-------------------------------------------------------
@@ -954,6 +1106,12 @@ begin
   end;
 end;
 
+function GetData( sQuery: TStrings;
+                  pParams: TFDParams=nil): TJSONArray;  overload;
+begin
+  result:=GetData(sQuery.Text,pParams);
+end;
+
 function GetData( const sQuery: String;
                   const fldNames:  Array of String;
                   const fldValues: Array of const): TJSONArray; overload;
@@ -969,12 +1127,6 @@ begin
 end;
 
 function GetData( sQuery: TStrings;
-                  pParams: TFDParams=nil): TJSONArray;  overload;
-begin
-  result:=GetData(sQuery.Text,pParams);
-end;
-
-function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
                   const fldValues: Array of const): TJSONArray; overload;
 begin
@@ -986,20 +1138,12 @@ function GetData( const sTblName: String;
                   sCondition: String='';
                   sOrder: string=''): TJSONArray; overload;
 var
-  sQry,
-  sWhere: String;
+  sQry: String;
 begin
   if sfields='' then
      sfields:='*';
-  sWhere:=getQueryParams(sCondition);
-  sQry:=
-    'SELECT '+sfields.ToLower+#13+
-    '  FROM '+sTblName.ToLower+' {IF MSSQL} WITH (NOLOCK) {fi} '#13;
-  if (sWhere<>'') then
-     sQry:=sQry+' WHERE '+sWhere+#13;
-  if sOrder<>'' then
-     sQry:=sQry+' ORDER BY '+sOrder;
-  sQry:=sQry+';';
+  sQry:=setQueryPaged(sTblName,sfields,sCondition);
+
   Result:= GetData(sQry);
 end;
 
@@ -1052,7 +1196,7 @@ Var
    DMC: TFDMController;
    sWhere: String;
 begin
-  sWhere:=getQueryParams(Condition);
+  sWhere:=Condition;
   DMC:=TFDMController.Create(dmMain);
   try
     Result:=DMC.cmdUpd(dbTableName,Context.ToString,sWhere);
@@ -1067,7 +1211,7 @@ Var
    DMC: TFDMController;
    sWhere: String;
 begin
-  sWhere:=getQueryParams(Condition);
+  sWhere:=Condition;
   DMC:=TFDMController.Create(dmMain);
   try
     Result:=DMC.cmdUpd(dbTableName,Context,sWhere);
@@ -1085,7 +1229,7 @@ var
    DMC: TFDMController;
    sWhere: String;
 begin
-  sWhere:=getQueryParams(Condition);
+  sWhere:=Condition;
   DMC:=TFDMController.Create(dmMain);
   Context:='{}';
   SetJSON(Context,fldNames,fldValues);
@@ -1101,7 +1245,7 @@ Var
    DMC: TFDMController;
    sWhere: String;
 begin
-  sWhere:=getQueryParams(Condition);
+  sWhere:=Condition;
   DMC:=TFDMController.Create(dmMain);
   try
     Result:= DMC.cmdDel(dbTableName,sWhere);
@@ -1233,6 +1377,43 @@ begin
 end;
 
 
+{ TFDSQLiteService }
+
+function SQLiteSetPassword( Const sNewPass, sOldPass: String): Integer;
+Var
+   DMC: TFDMController;
+begin
+  DMC:=TFDMController.Create(dmMain);
+  try
+    result:=DMC.cmdSetPass(sNewPass,sOldPass);
+  finally
+    DMC.Destroy;
+  end;
+end;
+
+function SQLiteSetCrypt(const sPassword: string; encrypt: Boolean): Integer;
+Var
+   DMC: TFDMController;
+begin
+  DMC:=TFDMController.Create(dmMain);
+  try
+    result:=DMC.cmdSetCrypt(sPassword,encrypt);
+  finally
+    DMC.Destroy;
+  end;
+end;
+
+function SQLiteGetCrypt( const sPassword: String; var sCrypted: String): Integer; // SqLite
+Var
+   DMC: TFDMController;
+begin
+  DMC:=TFDMController.Create(dmMain);
+  try
+    result:=DMC.cmdGetCrypt(sPassword,sCrypted);
+  finally
+    DMC.Destroy;
+  end;
+end;
 
 initialization
 

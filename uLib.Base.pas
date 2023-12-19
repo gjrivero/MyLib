@@ -32,6 +32,7 @@ Type
 
 var
    ApplicationName,
+   ApplicationData,
    ApplicationPath,
    ApplicationLogs: String;
 
@@ -127,11 +128,11 @@ procedure SaveLogFile(const sMessage: String);
 Function  GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
 Function  SetDefaultLine(MaxFields: Integer; Cdiv: Char=ChDiv): String;
 
-Procedure DiscountAmount( Var BolPor:     String;
-                     Var Porcentaje,
-                         Descont:    Double;
-                         TotalF:     Double;
-                         CheckP:     Boolean=false);
+Procedure DiscountAmount( Var BolPor: String;
+                          Var Porcentaje,
+                              Descont: Double;
+                              TotalF: Double;
+                              CheckP: Boolean=false);
 
 function NetHTTPReq( pMethod: TRESTRequestMethod;
                      const BaseURI, Path: String;
@@ -151,7 +152,7 @@ function IndexOfList( LB:       TStrings;
                       Partial:  Boolean=false;
                       CDiv: Char=ChDiv): Integer; overload;
 
-function TrimS(s: String): String;
+function TrimS(S: String): String;
 function AmpFilter(sVal: String): String;
 function AssignVal(const AVarRec: TVarRec): String; Overload;
 function AssignVal(const AVarRec: Variant): String; Overload;
@@ -344,17 +345,21 @@ begin
   Result:=Str;
 end;
 
+{$HINTS OFF}
 function IsNumeric(const AString: string): Boolean;
 var
   LCode: Integer;
   LVoidI: Int64;
   LVoidR: Double;
 begin
+  LVoidI:=0;
+  LVoidR:=0;
   Val(AString, LVoidI, LCode);
   if LCode<>0 then
      Val(AString, LVoidR, LCode);
-  Result := LCode = 0;
+  Result := (LVoidI<>0) or (LVoidR<>0);
 end;
+{$HINTS ON}
 
 function JSONObjectToParams(JSON: TJSONObject): TFDParams;
 Var
@@ -557,7 +562,7 @@ begin
 end;
 
 procedure saveTofile(const pFileName: String;
-                    const SourceText, CipherKey, IV: RawByteString;
+                     const SourceText, CipherKey, IV: RawByteString;
                           Crypted: Boolean);
 var
   Input: RawByteString;
@@ -698,7 +703,6 @@ begin
        st0:=St0+'.'+StringOfChar('0',DefDecimals);
      End;
   sFmt:=StC+St0;
-  //  Result:= FormatFloat('#,##0.00',R)
   Result:=FormatFloat(sFmt,T);
 end;
 
@@ -721,60 +725,33 @@ End;
 
 Function StrToReal(const St: String): Double;
 Var
-   Valor:    Extended;
-   I,
-   Commas,
-   Points:    Integer;
-   S:         String;
+   I: Integer;
+   Valor: Extended;
+   okSep: Boolean;
+   sNum: String;
 Begin
-  Points:=0;
-  Commas:=0;
-  S:='';
-  For I:=1 To Length(St) Do
-   If CharInSet(St[I],['0'..'9','.',',','-','+','E']) Then
-      Case St[I] Of
-      '0'..'9',
-      '-','+','E': S:=S+St[I];
-        '.':    Begin
-                  S:=S+St[I];
-                  Inc(Points);
-                End;
-        ',':    Begin
-                  S:=S+St[I];
-                  Inc(Commas);
-                End;
-      End;
-  if (Points>0) or (Commas>0) then
-     begin
-       if (Points>Commas) then
-          begin
-            If (Points=1) then
-               S:=ReplaceStr(S,'.',FormatSettings.DecimalSeparator)
-            else
-               begin
-                 S:=ReplaceStr(S,'.','');
-                 S:=ReplaceStr(S,',',FormatSettings.DecimalSeparator);
-               end;
-          end
-       else
-          begin
-            if Commas=1 then
-               S:=ReplaceStr(S,',',FormatSettings.DecimalSeparator)
-            else
-               begin
-                 S:=ReplaceStr(S,',','');
-                 S:=ReplaceStr(S,'.',FormatSettings.DecimalSeparator);
-               end;
-          end;
-     end;
-  if S='' then
-     S:='0';
+  sNum:='';
+  okSep:=False;
+  for I := Length(St) downto 1 do
+    If CharInSet(St[I],['0'..'9','.',',','-','+','E']) Then
+       Case St[I] Of
+        '.',
+        ',': if not okSep then
+                begin
+                  sNum:= FormatSettings.DecimalSeparator+ sNum;
+                  okSep:=True;
+                end;
+        else
+             sNum:= St[I]+sNum;
+       end;
+  if (sNum='') or not IsNumeric(sNum) then
+     sNum:='0';
   Try
-    Valor:=StrToFloat(S);
+    Valor := StrToFloat(sNum);
   Except
-    Valor:=0;
+    Valor := 0;
   End;
-  Result:=Valor;
+  Result := Valor;
 End;
 
 Function StrToInteger(St: String): Integer;
@@ -789,11 +766,11 @@ Begin
      Result:=A/B;
 End;
 
-Procedure DiscountAmount( Var BolPor:     String;
-                     Var Porcentaje,
-                         Descont:    Double;
-                         TotalF:     Double;
-                         CheckP:     Boolean=false);
+Procedure DiscountAmount( Var BolPor: String;
+                          Var Porcentaje,
+                              Descont: Double;
+                              TotalF: Double;
+                              CheckP: Boolean=false);
 Var
     Valor:  Double;
     TValor: String;
@@ -1663,11 +1640,15 @@ begin
   if BaseURI.IsEmpty then
      exit;
   nClient:=TNetHTTPClient.Create(Nil);
-  nClient.ContentType:='application/json';
   nClient.ProtocolVersion:=THTTPProtocolVersion.HTTP_2_0;  //?
+  nClient.ContentType:='application/json';
+  nClient.Accept:='*/*';
+  //nClient.AcceptEncoding:='gzip, deflate, br';
+  nClient.AllowCookies:=True;
 
   nReq:=TNetHTTPRequest.Create(Nil);
   nReq.Client := nClient;
+
 
   sURL:=Trim(BaseURI);
   if (sURL[Length(sURL)]<>'/') then
@@ -1870,6 +1851,7 @@ end;
 initialization
   ApplicationPath:=GetApplicationPath(false);
   ApplicationLogs:=ApplicationPath+PathDelim+'logs'+PathDelim;
+  ApplicationData:=ApplicationPath+PathDelim+'data'+PathDelim;
 finalization
 
 end.

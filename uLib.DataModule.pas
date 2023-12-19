@@ -13,7 +13,8 @@ uses
   FireDAC.Stan.Error, FireDAC.UI.Intf, FireDAC.Phys.Intf, FireDAC.Stan.Def,
   FireDAC.Stan.Pool, FireDAC.Stan.Async, FireDAC.Phys, FireDAC.ConsoleUI.Wait,
   FireDAC.Stan.Param, FireDAC.DatS, FireDAC.DApt.Intf, FireDAC.DApt,
-  FireDAC.Comp.Client, FireDAC.Comp.DataSet, FireDAC.Comp.UI
+  FireDAC.Comp.Client, FireDAC.Comp.DataSet, FireDAC.Comp.UI,
+  FireDAC.Phys.SQLiteWrapper.Stat, FireDAC.Phys.SQLiteDef, FireDAC.Phys.SQLite
 {$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
   ,FireDAC.Phys.MSSQL
   ,FireDAC.Phys.MSSQLDef
@@ -22,7 +23,7 @@ uses
   ,FireDAC.Phys.PG
   ,FireDAC.Phys.PGDef
 {$ENDIF}
-  ,System.Generics.Collections;
+  ,System.Generics.Collections, FireDAC.Stan.ExprFuncs;
 
 
 type
@@ -32,6 +33,9 @@ type
     EventAlerter1: TFDEventAlerter;
     Qry: TFDQuery;
     Cmd: TFDCommand;
+    SQLiteDriver: TFDPhysSQLiteDriverLink;
+    SQLiteSecurity: TFDSQLiteSecurity;
+    SQLiteValidate: TFDSQLiteValidate;
     procedure DataModuleCreate(Sender: TObject);
     procedure DataModuleDestroy(Sender: TObject);
     procedure CnxBeforeConnect(Sender: TObject);
@@ -68,6 +72,11 @@ begin
   case Cnx.RDBMSKind of
     TFDRDBMSKinds.MSSQL:
       ;
+    TFDRDBMSKinds.SQLite:
+      begin
+        SQLiteDriver.VendorHome:=ADriverVendor.Values['VendorHome'];
+        SQLiteDriver.VendorLib:=ADriverVendor.Values['VendorLib'];
+      end;
     TFDRDBMSKinds.MySQL:
       begin
         MySQLDriver.VendorHome:=ADriverVendor.Values['VendorHome'];

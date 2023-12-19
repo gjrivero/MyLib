@@ -92,8 +92,6 @@ const
   cCommandHelp = 'help';
   cCommandSetPort = 'set port';
   cCommandExit = 'exit';
-  logsFolder = 'logs';
-  settingFolder = 'settings';
 
   (*
   'uuId',
@@ -133,6 +131,9 @@ uses
     uLib.DataModule,
     uLib.Common;
 
+const
+  logsFolder = 'logs';
+  settingFolder = 'settings';
 
 procedure TServerLocalEvents.OnGetSSLPassword(var APassword: String);
 begin
@@ -257,6 +258,7 @@ var
   aJSON: String;
 begin
   ApplicationPath:=GetApplicationPath(LocalDir); // True para usar directorio aplicacion
+  ApplicationData:=ApplicationPath+'data'+PathDelim;
   // -----------------------------------------------
   if Not DirectoryExists(ApplicationPath+logsFolder) then
      begin

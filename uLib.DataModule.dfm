@@ -1,8 +1,8 @@
 object dmMain: TdmMain
   OnCreate = DataModuleCreate
   OnDestroy = DataModuleDestroy
-  Height = 204
-  Width = 389
+  Height = 257
+  Width = 400
   object Cnx: TFDConnection
     Params.Strings = (
       'Pooled=True')
@@ -31,5 +31,19 @@ object dmMain: TdmMain
     Connection = Cnx
     Left = 160
     Top = 24
+  end
+  object SQLiteDriver: TFDPhysSQLiteDriverLink
+    Left = 304
+    Top = 136
+  end
+  object SQLiteSecurity: TFDSQLiteSecurity
+    DriverLink = SQLiteDriver
+    Left = 184
+    Top = 136
+  end
+  object SQLiteValidate: TFDSQLiteValidate
+    DriverLink = SQLiteDriver
+    Left = 64
+    Top = 136
   end
 end
