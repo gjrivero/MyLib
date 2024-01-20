@@ -620,9 +620,10 @@ begin
      end;
   end;
 
+  //cCmd.SaveToFile('trans.txt');
   FDM.Qry.SQL.Clear;
   FDM.Qry.SQL.Assign(cCmd);
-  //FDM.Qry.SQL.SaveToFile('trans.txt');
+
   if pParams<>Nil then
      begin
        FDM.Qry.Params:=pParams;

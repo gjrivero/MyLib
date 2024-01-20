@@ -25,6 +25,7 @@ Const
    DATE_TIME_FORMAT = 'yyyy-mm-dd hh:nn:ss';
    REGEX_EMAIL =  '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-\p{Cyrillic}]'+
                '+\.[a-zA-Z0-9-.\p{Cyrillic}]*[a-zA-Z0-9\p{Cyrillic}]+$';
+   RT_HTML = 23;
 
 Type
    TRandAttributes= (rdAllChar, rdAlpha, rdNumber, rdEspecial );
@@ -158,8 +159,8 @@ function AssignVal(const AVarRec: TVarRec): String; Overload;
 function AssignVal(const AVarRec: Variant): String; Overload;
 function IsNumeric(const AString: string): Boolean;
 function VersionStr(nuVerMayor, nuVerMenor, nuVerRelease: Integer): String;
+function LoadResourceHTML( const RName: PChar; RType: PChar=Nil): String;
 function LoadResourceString( const RName: PCHAR; RType: PCHAR = RT_RCDATA ): String;
-function LoadResourceHTML( const RName: PCHAR; RType: PCHAR = RT_RCDATA ): String;
 function StringToHex(const S: String): String;
 function HexToString(const S: String): String;
 function StreamToString(Stream: TStream; Encoding: TEncoding=nil): string;
@@ -349,15 +350,11 @@ end;
 function IsNumeric(const AString: string): Boolean;
 var
   LCode: Integer;
-  LVoidI: Int64;
   LVoidR: Double;
 begin
-  LVoidI:=0;
   LVoidR:=0;
-  Val(AString, LVoidI, LCode);
-  if LCode<>0 then
-     Val(AString, LVoidR, LCode);
-  Result := (LVoidI<>0) or (LVoidR<>0);
+  Val(AString, LVoidR, LCode);
+  Result := (LCode=0);
 end;
 {$HINTS ON}
 
@@ -734,17 +731,19 @@ Begin
   okSep:=False;
   for I := Length(St) downto 1 do
     If CharInSet(St[I],['0'..'9','.',',','-','+','E']) Then
-       Case St[I] Of
-        '.',
-        ',': if not okSep then
-                begin
-                  sNum:= FormatSettings.DecimalSeparator+ sNum;
-                  okSep:=True;
-                end;
+      Case St[I] Of
+       '.',
+       ',': if not okSep then
+               begin
+                 sNum:=FormatSettings.DecimalSeparator+sNum;
+                 okSep:=True;
+               end;
         else
-             sNum:= St[I]+sNum;
-       end;
-  if (sNum='') or not IsNumeric(sNum) then
+           sNum:=St[I]+sNum;
+      end;
+  if not sNum.IsEmpty And (sNum[1]=FormatSettings.DecimalSeparator) then
+     sNum:='0'+sNum;
+  if (sNum='') {or not IsNumeric(sNum)} then
      sNum:='0';
   Try
     Valor := StrToFloat(sNum);
@@ -903,7 +902,6 @@ begin
      end;
 end;
 
-
 function StrToDateTimeFmt(sDateTime: String): TDateTime;
 var
   fs: TFormatSettings;
@@ -936,7 +934,8 @@ Begin
   Result:=St;
 End;
 
-{
+{ unit: WinApi.Windows
+
   RT_CURSOR       = MakeIntResource(1);
   RT_BITMAP       = MakeIntResource(2);
   RT_ICON         = MakeIntResource(3);
@@ -955,15 +954,13 @@ End;
 
 }
 
-
-
 (*
 
 /* standard resource # for HTML */
 #define HTML 23
 
 /* HTML resource */
-INDEX_PAGE  23     "HTML\index.html"   Asi tambien funciona
+INDEX_PAGE  HTML   "HTML\index.html"   23: Asi tambien funciona
 INDEX_PAGE  HTML   "HTML\index.html"
 PAGE_1      HTML   "HTML\page1.html"
 PAGE_2      HTML   "HTML\page2.html"
@@ -975,23 +972,6 @@ STYLE_CSS   HTML   "HTML\style.css"
 
 *)
 
-function URLEncode(const S: string): string;
-var
-  Idx: Integer; // loops thru characters in string
-begin
-  Result := '';
-  for Idx := 1 to Length(S) do
-  begin
-    {$IFDEF UNICODE}
-    if CharInSet(S[Idx], ['A'..'Z', 'a'..'z', '0'..'9', '-', '_', '.']) then
-    {$ELSE}
-    if S[Idx] in ['A'..'Z', 'a'..'z', '0'..'9', '-', '_', '.'] then
-    {$ENDIF}
-      Result := Result + S[Idx]
-    else
-      Result := Result + '%' + IntToHex(Ord(S[Idx]), 2);
-  end;
-end;
 
 type
   LOWORD = Word;
@@ -1021,13 +1001,20 @@ function MakeResourceURL( const ModuleName: string;
 begin
   Assert(ModuleName <> '');
   Assert(Assigned(ResName));
-  Result := 'res://' + URLEncode(ModuleName);
+  Result := 'res://' + TNetEncoding.URL.Encode(ModuleName);
   if Assigned(ResType) then
-     Result := Result + './' + URLEncode(FormatResNameOrType(ResType));
-  Result := Result + '/' + URLEncode(FormatResNameOrType(ResName));
+     Result := Result + './' + TNetEncoding.URL.Encode(FormatResNameOrType(ResType));
+  Result := Result + '/' + TNetEncoding.URL.Encode(FormatResNameOrType(ResName));
 end;
 
-function LoadResourceHTML( const RName: PCHAR; RType: PCHAR = RT_RCDATA ): String;
+function MakeResourceURL( const Module: HMODULE;
+                          const ResName: PChar;
+                          const ResType: PChar = nil): string; overload;
+begin
+  Result := MakeResourceURL(GetModuleName(Module), ResName, ResType);
+end;
+
+function LoadResourceHTML( const RName: PChar; RType: PChar=Nil): String;
 begin
   Result := MakeResourceURL(GetModuleName(HInstance), RName, RType);
 end;
@@ -1057,7 +1044,6 @@ begin
     streamResource.Destroy;
   end;
 end;
-
 
 Function FToStrSQL(Value: Double): String;
 Var st: String;
@@ -1648,7 +1634,6 @@ begin
 
   nReq:=TNetHTTPRequest.Create(Nil);
   nReq.Client := nClient;
-
 
   sURL:=Trim(BaseURI);
   if (sURL[Length(sURL)]<>'/') then
