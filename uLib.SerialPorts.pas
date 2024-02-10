@@ -1,4 +1,4 @@
-unit uLib.COMM;
+unit uLib.SerialPorts;
 
 interface
 
@@ -275,8 +275,6 @@ begin
      end;
   Result:=sResp;
 end;
-
-
 
 end.
 

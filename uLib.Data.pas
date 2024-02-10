@@ -3,6 +3,7 @@ unit uLib.Data;
 interface
 
 uses
+  Data.DB,
   System.SysUtils,
   System.Classes,
   System.JSON,
@@ -30,8 +31,10 @@ function SqlWhere( pParams: TFDParams ): String; Overload;
 function SqlWhere( const fldNames:  Array of String;
                    const fldValues: Array of Const): String;  Overload;
 
+function GetDataSet( const sQuery: String;
+                           pParams: TFDParams=Nil): TDataSet;
 function GetData( const sQuery: String;
-                        pParams: TFDParams=Nil): TJSONArray; Overload;
+                           pParams: TFDParams=Nil): TJSONArray; Overload;
 function GetData( sQuery: TStrings;
                   pParams: TFDParams=nil): TJSONArray; Overload;
 function GetData( const sQuery: String;
@@ -90,9 +93,34 @@ function ExecTransact( cSQL: String;
 function FieldsString( const fields: array of String; alias: String=''  ): String;
 function GetDriverID(CnxDriver: String): TFDRDBMSKind;
 function DatabaseExists( const nameDB: String): boolean;
-{function SetFDParams( const fldNames: Array Of String;
+{
+function SetFDParams( const fldNames: Array Of String;
                       const fldValues: Array Of Variant): TFDParams; overload;
 }
+
+Function sqlInsert( const filename: String;
+                          aJSON: TJSONObject;
+                          fldReturn: String=''): String; overload;
+
+Function sqlInsert( const filename, aJSON: string;
+                          fldReturn: String=''): String; overload;
+
+Function sqlUpdate( const filename: String;
+                          aJSON: TJSONObject;
+                          whereStr: String): String; overload;
+
+Function sqlUpdate( const filename, aJSON: string;
+                          whereStr: String): String; overload;
+
+Function sqlInsertOrUpdate( const filename: String;
+                                  aJSON: TJSONObject;
+                                  whereStr: String;
+                                  fldReturn: String=''): String; overload;
+
+Function sqlInsertOrUpdate( const filename, aJSON: string;
+                                  whereStr: String;
+                                  fldReturn: String=''): String; overload;
+
 function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
 function SQLiteSetPassword( Const sNewPass, sOldPass: String): Integer;
@@ -108,7 +136,6 @@ uses
     System.Math,
     System.Net.URLClient,
     Datasnap.DSSession,
-    Data.DB,
     Data.DBXPlatform,
     FireDAC.Comp.Client,
     FireDAC.Stan.Error,
@@ -138,7 +165,7 @@ type
     function cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil; aCommit: Boolean=false): Integer; overload;
 
     function GetRecords(Const sQuery: String;
-                              pParams: TFDParams=nil): TJSONArray;
+                              pParams: TFDParams=nil): TDataSet;
 
     function execTrans( cSQL, sDecl: TStringList;
                         sFields: String;
@@ -271,6 +298,82 @@ begin
              IfThen(I=1,'',',')+(alias+GetStr(fields,I,',')).ToLower+'='+
              AmpFilter(GetStr(Values,I,','));
   result:=trimS(sFields);
+end;
+
+Function sqlInsert( const filename: String;
+                          aJSON: TJSONObject;
+                          fldReturn: String=''): String; overload;
+Var
+    sCmd,
+    sFields,
+    sValues,
+    sSetVal,
+    sCondition: String;
+Begin
+  GetFieldsValues( aJSON,sFields, sValues, sSetVal, sCondition);
+  sCmd:=
+    'INSERT INTO '+fileName+' ('+sFields+')'#13#10;
+  if Not fldReturn.IsEmpty then
+  sCmd:=sCmd+
+    '       OUTPUT inserted.id'#13#10+
+    '              ,'+fldReturn.QuotedString+#13#10+
+    '              ,inserted.'+fldReturn+#13#10+
+    '         INTO @temptable'#13#10;
+  sCmd:=sCmd+
+    '       VALUES ('+sValues+');';
+  result:=sCmd;
+End;
+
+Function sqlInsert( const filename, aJSON: string;
+                          fldReturn: String=''): String; overload;
+begin
+  result:=sqlInsert(filename,CreateTJSONObject(aJSON),fldReturn);
+end;
+
+Function sqlUpdate( const filename: String;
+                          aJSON: TJSONObject;
+                          whereStr: String): String; overload;
+Var
+    sCmd,
+    sFields,
+    sValues,
+    sSetVal,
+    sCondition: String;
+Begin
+  GetFieldsValues(aJSON,sFields, sValues, sSetVal, sCondition);
+  Result:=
+    'UPDATE '+filename+#13#10+
+    '   SET '+sSetVal+#13#10+
+    ' WHERE '+whereStr+';';
+end;
+
+Function sqlUpdate( const filename, aJSON: string;
+                          whereStr: String): String; overload;
+begin
+  result:=sqlUpdate(filename, CreateTJSONObject(aJSON),whereStr);
+end;
+
+Function sqlInsertOrUpdate( const filename: String;
+                                  aJSON: TJSONObject;
+                                  whereStr: String;
+                                  fldReturn: String=''): String; overload;
+Var st: String;
+Begin
+  st:='';
+  If (WhereStr<>'') Then
+     Begin
+       st:=sqlUpdate(filename, aJSON, whereStr)+#13+
+           'IF @@ROWCOUNT=0'#13;
+     End;
+  st:=st+sqlInsert(filename,aJSON,fldReturn);
+  Result:=St;
+End;
+
+Function sqlInsertOrUpdate( const filename, aJSON: string;
+                                  whereStr: String;
+                                  fldReturn: String=''): String; overload;
+begin
+  result:=sqlInsertOrUpdate( filename, CreateTJSONObject(aJSON),whereStr,fldReturn);
 end;
 
 (*
@@ -619,8 +722,9 @@ begin
        cCmd.Add('END;');
      end;
   end;
-
-  //cCmd.SaveToFile('trans.txt');
+{$IFDEF DEBUG}
+  cCmd.SaveToFile('trans.txt');
+{$ENDIF}
   FDM.Qry.SQL.Clear;
   FDM.Qry.SQL.Assign(cCmd);
 
@@ -742,7 +846,7 @@ begin
           sCmd.Add('    value NVARCHAR(MAX)');
           sCmd.Add('  );');
           fldsReturn:=
-                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedRows';
+                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedrows';
         end;
     TFDRDBMSKinds.MSSQL:
         begin
@@ -753,7 +857,7 @@ begin
           sCmd.Add('    value NVARCHAR(MAX)');
           sCmd.Add('  );');
           fldsReturn:=
-                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedRows';
+                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedrows';
         end;
   end;
   try
@@ -762,7 +866,7 @@ begin
          AJSON:=CreateTJSONArray(Context);
          for I := 0 to AJSON.Count-1 do
            begin
-             var JSON:=(AJSON[i] as TJSONObject).ToString;
+             var JSON:=AJSON.items[i].ToJSON;
              GetFieldsvalues(JSON,sFields,sValues,sSetVal,sCondition,false);
              InsTable(sCmd,dbTableName,sFields,sValues,True);
            end;
@@ -804,14 +908,13 @@ Var
 begin
   sCmd:=TStringList.create;
   try
-    fldsReturn:=
-                '(SELECT @@ROWCOUNT) updatedrows';
+    fldsReturn:= '(SELECT @@ROWCOUNT) updatedrows';
     if Context.StartsWith('[') then
        begin
          AJSON:=CreateTJSONArray(Context);
          for I := 0 to AJSON.count-1 do
           begin
-            sJSON:=(AJSON.Items[I] As TJSONObject).ToString;
+            sJSON:=AJSON.Items[I].ToJSON;
             var lCondition: String;
             GetFieldsvalues(sJSON,sFields,sValues,sSetVal,lCondition,true);
             updTable(sCmd,dbTableName,sSetVal,lCondition);
@@ -843,7 +946,7 @@ begin
   end;
 end;
 
-function TFDMController.GetRecords(Const sQuery: String; pParams: TFDParams=Nil): TJSONArray;
+function TFDMController.GetRecords(Const sQuery: String; pParams: TFDParams=Nil): TDataSet;
 Var aHeader: TStringList;
    sWhere: String;
 begin
@@ -867,10 +970,7 @@ begin
           end;
   end;
   aHeader.Destroy;
-  if FDM.Qry.IsEmpty then
-     Result:=TJSONArray.Create()
-  else
-     Result:=FDM.Qry.AsJSONArray();
+  result:=FDM.Qry;
 end;
 
 function TFDMController.cmdSetPass( Const sNewPass, sOldPass: String): Integer;
@@ -1089,13 +1189,12 @@ begin
   stCmd.Destroy;
 end;
 
-
 //-------------------------------------------------------
 //
 //-------------------------------------------------------
 
-function GetData( const sQuery: String;
-                   pParams: TFDParams=nil): TJSONArray; overload;
+function GetDataSet( const sQuery: String;
+                           pParams: TFDParams=nil): TDataSet; overload;
 var
    DMC: TFDMController;
 begin
@@ -1107,8 +1206,21 @@ begin
   end;
 end;
 
+function GetData( const sQuery: String;
+                  pParams: TFDParams=nil): TJSONArray; overload;
+var
+   DMC: TFDMController;
+begin
+  DMC:=TFDMController.Create(dmMain);
+  try
+    Result:=DMC.GetRecords(sQuery,pParams).AsJSONArray;
+  finally
+    DMC.Destroy;
+  end;
+end;
+
 function GetData( sQuery: TStrings;
-                  pParams: TFDParams=nil): TJSONArray;  overload;
+                  pParams: TFDParams=nil): TJSONArray; overload;
 begin
   result:=GetData(sQuery.Text,pParams);
 end;
@@ -1144,7 +1256,6 @@ begin
   if sfields='' then
      sfields:='*';
   sQry:=setQueryPaged(sTblName,sfields,sCondition);
-
   Result:= GetData(sQry);
 end;
 

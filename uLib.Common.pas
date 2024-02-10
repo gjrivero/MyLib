@@ -17,6 +17,7 @@ const
    SS_LOGINID     = 'loginid';
    SS_FIRSTNAME   = 'firstname';
    SS_LASTNAME    = 'lastname';
+   SS_TERMINAL    = 'terminal';
    SS_APPID       = 'appid';
    SS_APPNAME     = 'appname';
    SS_DEVELOPID   = 'developid';

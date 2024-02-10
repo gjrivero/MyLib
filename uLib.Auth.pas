@@ -9,6 +9,7 @@ uses
     System.classes;
 
 Const
+   METHOD_PING    = 'ping';
    ACT_DEFAULT    = -1;
    ACT_DIAGNOSTIC =  0;
    ACT_SIGNUP     =  1;
@@ -26,17 +27,16 @@ Type
                            UserRoles: TStrings;
                            var aResp: String);
 
-     constructor Create( Request: TWebRequest;
-                         const devKey: string='');
+     constructor Create( Request: TWebRequest);
+     destructor destroy; virtual;
    protected
      AUser,
      APassword,
-     Apikey,
      Host_Url,
      Base_Url,
      Method,
-     JSONBody,
-     DEV_KEY_NAME: string;
+     JSONBody: string;
+     AHeaders: TStringList;
      MethodIndex: Integer;
    private
    public
@@ -82,7 +82,7 @@ procedure TUserWebAuthenticate.GetAction(Const mPath, sPath: String; var action:
 begin
   action:=ACT_DEFAULT;
   // /api/main/login
-  if sPath='hello' then
+  if sPath=METHOD_PING then
      action:=ACT_DIAGNOSTIC
   else
      if (GetStr(Base_Url,MethodIndex-1,'/')=mPath) then
@@ -157,15 +157,12 @@ begin
   aResp:=aJSON;
 end;
 
-constructor TUserWebAuthenticate.Create( Request: TWebRequest;
-                                         const devKey: string='');
+constructor TUserWebAuthenticate.Create( Request: TWebRequest);
 Var
-   aHeaders: TStringList;
    aName,
    aValue,
    sHeader: String;
    I: Integer;
-   TL: TstringList;
 begin
   Host_Url:=LowerCase(Request.Host);
   Base_Url:=LowerCase(Request.PathInfo);
@@ -175,32 +172,27 @@ begin
   else
      // '/api/otp/account/2'
      MethodIndex:=4;
-  if ContainsText(Base_Url,'hello') then
-     Method:='hello'
+  if ContainsText(Base_Url,METHOD_PING) then
+     Method:=METHOD_PING
   else
      Method:=LowerCase(GetStr(Base_Url,MethodIndex,'/'));
 
-  DEV_KEY_NAME:=devKey;
-  aHeaders:=TStringList.Create;
-  TL:=TstringList.Create;
-  Try
-   with TIdHTTPAppRequest(Request).GetRequestInfo Do
-    for I:= 0 to RawHeaders.Count - 1 do
-      begin
-        sHeader:=RawHeaders[I];
-        aName := GetStr(sHeader,1,':');
-        aValue:= GetStr(sHeader,2,':');
-        aHeaders.AddPair(aName,aValue );
-        Tl.add(aName+': '+ aValue);
-      end;
-    APIKey:=aHeaders.Values[DEV_KEY_NAME];
-    JSONBody:= TIdHTTPAppRequest(Request).Content;
-    Tl.add(APIKey);
-    Tl.add(JSONBody);
-  Finally
-    aHeaders.Destroy;
-  End;
-  Tl.Destroy;
+  AHeaders:=TStringList.Create;
+  with TIdHTTPAppRequest(Request).GetRequestInfo Do
+   for I:= 0 to RawHeaders.Count - 1 do
+    begin
+      sHeader:=RawHeaders[I];
+      aName := GetStr(sHeader,1,':');
+      aValue:= GetStr(sHeader,2,':');
+      AHeaders.AddPair(aName,aValue );
+    end;
+  JSONBody:= TIdHTTPAppRequest(Request).Content;
+end;
+
+destructor TUserWebAuthenticate.destroy;
+begin
+  AHeaders.Destroy;
+  Inherited;
 end;
 
 end.
