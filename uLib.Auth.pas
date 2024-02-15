@@ -4,6 +4,7 @@ interface
 
 uses
     Web.HTTPApp,
+    Datasnap.DSSession,
     System.JSON,
     System.SysUtils,
     System.classes;
@@ -26,8 +27,8 @@ Type
      procedure CommonAuth( const aMainPath, sJSON: string;
                            UserRoles: TStrings;
                            var aResp: String);
-
-     constructor Create( Request: TWebRequest);
+     procedure SetValue(Session: TDSSession; const Key, Value: String);
+     constructor Create( Request: TWebRequest; var Credentials: String);
      destructor destroy; virtual;
    protected
      AUser,
@@ -39,6 +40,9 @@ Type
      AHeaders: TStringList;
      MethodIndex: Integer;
    private
+     UseToken: Boolean;
+     WebRequest: TWebRequest;
+     procedure BuildToken(const sClaims: String; Var sToken: String);
    public
    end;
 
@@ -48,12 +52,17 @@ implementation
 Uses
     System.Hash,
     System.StrUtils,
+    System.DateUtils,
     System.Generics.Collections,
 
     IdHTTPHeaderInfo,
-    IdCustomHTTPServer,
     IdHTTPWebBrokerBridge,
-    Datasnap.DSSession,
+
+    JOSE.Core.JWT,
+    JOSE.Core.JWS,
+    JOSE.Core.JWK,
+    JOSE.Core.JWA,
+    JOSE.Core.Builder,
 
     uLib.Base,
     uLib.Data,
@@ -101,6 +110,14 @@ begin
   {}
 end;
 
+procedure TUserWebAuthenticate.SetValue( Session: TDSSession;
+                                         const Key, Value: String);
+begin
+  if Value.IsEmpty then
+     exit;
+  Session.PutData(Key,Value);
+end;
+
 function TUserWebAuthenticate.ActionSignUp( const sJSON: String): string;
 begin
   result:='';
@@ -111,10 +128,44 @@ begin
   result:='';
 end;
 
+procedure TUserWebAuthenticate.BuildToken(const sClaims: String; Var sToken: String);
+var
+  LToken: TJWT;
+  LAlg: TJOSEAlgorithmId;
+begin
+  LToken := TJWT.Create;
+  try
+    // Token claims
+    LToken.Claims.Subject := sClaims;
+    LToken.Claims.IssuedAt := Now;
+    LToken.Claims.Expiration := Now + 15 * OneMinute;
+    LToken.Claims.Issuer := 'Saint-Sync-Server';
+    // Signing algorithm
+    // case cbbAlgorithm.ItemIndex of
+    //  0: LAlg := TJOSEAlgorithmId.HS256;
+    //  1: LAlg := TJOSEAlgorithmId.HS384;
+    //  2: LAlg := TJOSEAlgorithmId.HS512;
+    //  else LAlg := TJOSEAlgorithmId.HS256;
+    // end;
+    LAlg := TJOSEAlgorithmId.HS512;
+    // Signing and compact format creation.
+    sToken:= TJOSE.SerializeCompact(MY_SECRET, LAlg, LToken);
+    // Token in compact representation
+    // Header and Claims JSON representation
+    // memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
+    // memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
+  finally
+    LToken.Free;
+  end;
+end;
+
 procedure TUserWebAuthenticate.CommonAuth( const aMainPath, sJSON: string;
                                            UserRoles: TStrings;
                                            var aResp: String);
-Var
+var
+   Session: TDSSession;
+   Token,
+   sData,
    aJSON,
    errorMsg: string;
    Action: Integer;
@@ -152,20 +203,50 @@ begin
        if sRole='' then
           sRole:='standard';
        UserRoles.Add(sRole);
+       Session := TDSSessionManager.GetThreadSession;
+       SetValue(Session,SS_SESSIONID,Session.SessionName);
+       SetValue(Session,SS_USER, AUser);
+       SetValue(Session,SS_DEVELOPID, GetStr(aJSON,SS_DEVELOPID));
+       SetValue(Session,SS_APPID, GetStr(aJSON,SS_APPID));
+       SetValue(Session,SS_APPNAME, GetStr(aJSON,SS_APPNAME));
+       SetValue(Session,SS_DEVELOPID, GetStr(aJSON,SS_DEVELOPID));
+       SetValue(Session,SS_LOGINID, GetStr(aJSON,SS_LOGINID)); // La tabla debe tener ID
+       SetValue(Session,SS_FIRSTNAME, GetStr(aJSON,SS_FIRSTNAME));
+       SetValue(Session,SS_LASTNAME, GetStr(aJSON,SS_LASTNAME));
+       SetValue(Session,SS_EMAIL, GetStr(aJSON,SS_EMAIL));
+       SetValue(Session,SS_PHONE, GetStr(aJSON,SS_PHONE));
+       SetValue(Session,SS_ROLE, GetStr(aJSON,SS_ROLE));
+       SetValue(Session,SS_BRANCH, GetStr(aJSON,SS_BRANCH));
+       SetValue(Session,SS_TERMINAL, GetStr(aJSON,SS_TERMINAL));
+       //------------------------------------------------
+       if UseToken then
+          begin
+            sData:='';
+            SetJSON(sData,['Id', SS_SESSIONID, SS_LOGINID, SS_USER],
+                       [Session.Id,
+                        Session.SessionName,
+                        GetInt(aJSON,SS_LOGINID),AUser]);
+            BuildToken(sData,Token);
+
+            SetValue(Session,SS_TOKENID,Token);
+          end;
+       //------------------------------------------------
        SetDataSession(aJSON);
      end;
   aResp:=aJSON;
 end;
 
-constructor TUserWebAuthenticate.Create( Request: TWebRequest);
+constructor TUserWebAuthenticate.Create( Request: TWebRequest; var Credentials: String);
 Var
    aName,
    aValue,
    sHeader: String;
    I: Integer;
 begin
-  Host_Url:=LowerCase(Request.Host);
-  Base_Url:=LowerCase(Request.PathInfo);
+  WebRequest:=Request;
+
+  Host_Url:=LowerCase(WebRequest.Host);
+  Base_Url:=LowerCase(WebRequest.PathInfo);
   if ContainsText(Host_Url,'api') then
      // '/otp/account/2'
      MethodIndex:=3
@@ -176,9 +257,8 @@ begin
      Method:=METHOD_PING
   else
      Method:=LowerCase(GetStr(Base_Url,MethodIndex,'/'));
-
   AHeaders:=TStringList.Create;
-  with TIdHTTPAppRequest(Request).GetRequestInfo Do
+  with TIdHTTPAppRequest(WebRequest).GetRequestInfo Do
    for I:= 0 to RawHeaders.Count - 1 do
     begin
       sHeader:=RawHeaders[I];
@@ -186,7 +266,18 @@ begin
       aValue:= GetStr(sHeader,2,':');
       AHeaders.AddPair(aName,aValue );
     end;
-  JSONBody:= TIdHTTPAppRequest(Request).Content;
+  JSONBody:= TIdHTTPAppRequest(WebRequest).Content;
+  AUser:=GetStr(Credentials,SS_USER);
+  APassword:=GetStr(Credentials,SS_PASSWORD);
+  UseToken:=false;
+  if AUser.IsEmpty And APassword.IsEmpty then
+     begin
+       AUser:=GetStr(JSONBody,SS_USER);
+       APassword:=GetStr(JSONBody,SS_PASSWORD);
+       SetJSON(Credentials,[SS_USER],[AUser]);
+       SetJSON(Credentials,[SS_PASSWORD],[APassword]);
+       UseToken:=true;
+     end;
 end;
 
 destructor TUserWebAuthenticate.destroy;

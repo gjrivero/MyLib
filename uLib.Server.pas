@@ -8,19 +8,31 @@ uses
   System.SysUtils,
   System.Variants,
   System.Classes,
+  Web.WebBroker,
 
   IdGlobal,
+  IdContext,
   IPPeerAPI,
   IdSSLOpenSSL,
+  IdSchedulerOfThreadPool,
   IdHTTPWebBrokerBridge;
 
 type
+
   TServerLocalEvents = class
   public
     SSLCertificate: String;
   private
+    function VerifyToken( const My_Secret, AuthValue: String;
+                          var aData: string): Boolean;
+    function VerifyTokenComplete( const My_Secret, AuthValue: String;
+                                  var aData: string): Boolean;
     procedure OnGetSSLPassword(var APassword: String);
     procedure OnQuerySSLPort(APort: TIdPort; var AUseSSL: Boolean);
+    procedure OnParseAuthentication( AContext: TIdContext;
+                                     const AAuthType, AAuthData: String;
+                                     var VUsername, VPassword: String;
+                                     var VHandled: Boolean);
   end;
 
   TIdHTTPWebBrokerServer = class
@@ -34,6 +46,7 @@ type
     LLocalEvents: TServerLocalEvents;
     LIOHandleSSL: TIdServerIOHandlerSSLOpenSSL;
     FGetAppSettings: String;
+    SchedulerOfThreadPool: TIdSchedulerOfThreadPool;
     procedure SetGetAppSettings(const Value: String);
   private
     function BindPort(APort: Integer): Boolean;
@@ -93,28 +106,6 @@ const
   cCommandSetPort = 'set port';
   cCommandExit = 'exit';
 
-  (*
-  'uuId',
-  'password'
-  'security'
-  'http_port'
-  'host'
-  'driverId',
-  'server',
-  'database',
-  'user_name',
-  'password',
-  'port',
-  'OSAuthent'],
-    ['database','schema','branch','role','active','default'],
-    ['','dbo','','standard',false,false]);
-*)
-
-{$SCOPEDENUMS ON}
-type
-  DSProtocol = (HTTP, HTTPS);
-{$SCOPEDENUMS OFF}
-
 var
    DomainPrefix: Boolean;
 
@@ -123,8 +114,21 @@ implementation
 uses
     System.JSON,
     System.StrUtils,
+    System.DateUtils,
     System.Generics.Collections,
+
+    Datasnap.DSHTTP,
     Datasnap.DSSession,
+    IdHTTPHeaderInfo,
+
+    JOSE.Core.JWT,
+    JOSE.Core.JWS,
+    JOSE.Core.JWK,
+    JOSE.Core.Builder,
+  //  JOSE.Core.JWA,
+  //  JOSE.Types.JSON,
+  //  JOSE.Producer,
+  //  JOSE.Types.Bytes,
 
     uLib.Base,
     uLib.Data,
@@ -135,9 +139,53 @@ const
   logsFolder = 'logs';
   settingFolder = 'settings';
 
+var
+  App: TDSHTTPApplication;
+
+Type
+  TIdHTTPAppRequestHelper = class helper for TIdHTTPAppRequest
+  public
+    function GetRequestInfo: TIdEntityHeaderInfo;
+  end;
+
+
+function TIdHTTPAppRequestHelper.GetRequestInfo: TIdEntityHeaderInfo;
+begin
+  Result := FRequestInfo;
+end;
+
 procedure TServerLocalEvents.OnGetSSLPassword(var APassword: String);
 begin
   APassword := GetStr(SSLCertificate,'password');
+end;
+
+procedure TServerLocalEvents.OnParseAuthentication(
+          AContext: TIdContext;
+          const AAuthType, AAuthData: String;
+          var VUsername, VPassword: String;
+          var VHandled: Boolean);
+var
+  S,
+  aData,
+  SessionId,
+  AuthValue: String;
+begin
+  if SameText(AAuthType, 'Bearer') then
+  begin
+    AuthValue := AAuthData;
+    if VerifyToken(MY_SECRET,AuthValue,aData) then
+       begin
+         var tSub:=GetStr(aData,'sub');
+         SessionId:=GetStr(tSub,SS_SESSIONID);
+          with TIdHTTPAppRequest(Acontext).GetRequestInfo Do
+         {
+            'SID',
+            'dssession='+SessionId+',dssessionexpires=120000');
+         }
+         VUsername:='001';
+         VHandled:=True;
+       end;
+  end;
 end;
 
 procedure TServerLocalEvents.OnQuerySSLPort(APort: TIdPort; var AUseSSL: Boolean);
@@ -145,13 +193,62 @@ begin
   AUseSSL := True;
 end;
 
+function TServerLocalEvents.VerifyToken( const My_Secret, AuthValue: String;
+                                         var aData: string): Boolean;
+var
+  LToken: TJWT;
+begin
+  aData := '';
+  Result := False;
+  // Unpack and verify the token
+  LToken := TJOSE.Verify(MY_SECRET, AuthValue);
+  if Assigned(LToken) then
+  begin
+    try
+      Result := LToken.Verified;
+      aData := LToken.Claims.JSON.ToString;
+    finally
+      LToken.Free;
+    end;
+  end;
+end;
+
+function TServerLocalEvents.VerifyTokenComplete( const My_Secret, AuthValue: String;
+                                                 var aData: string): Boolean;
+var
+  LKey: TJWK;
+  LToken: TJWT;
+  LSigner: TJWS;
+begin
+  aData:='';
+  LKey := TJWK.Create(MY_SECRET);
+  try
+    LToken := TJWT.Create;
+    try
+      LSigner := TJWS.Create(LToken);
+      try
+        LSigner.SetKey(LKey);
+        LSigner.CompactToken := AuthValue;
+
+        Result := LSigner.VerifySignature;
+      finally
+        LSigner.Free;
+      end;
+    finally
+      LToken.Free;
+    end;
+  finally
+    LKey.Free;
+  end;
+end;
+
+{ TIdHTTPWebBrokerServer }
+
 procedure TerminateThreads;
 begin
   if TDSSessionManager.Instance <> nil then
      TDSSessionManager.Instance.TerminateAllSessions;
 end;
-
-{ TIdHTTPWebBrokerServer }
 
 procedure TIdHTTPWebBrokerServer.SetDatabaseSchemas();
 Var
@@ -193,10 +290,19 @@ constructor TIdHTTPWebBrokerServer.Create(
 var
   CertifiedPath,
   aSSLCertificate: String;
-  TL: TStringList;
 begin
-  FServer := TIdHTTPWebBrokerBridge.Create(Nil);
   LLocalEvents := TServerLocalEvents.Create;
+  FServer := TIdHTTPWebBrokerBridge.Create(Nil);
+
+  FServer.OnParseAuthentication := LLocalEvents.OnParseAuthentication;
+
+  App:=TDSHTTPApplication(FServer);
+
+  SchedulerOfThreadPool := TIdSchedulerOfThreadPool.Create(FServer);
+  SchedulerOfThreadPool.PoolSize := 50;
+  FServer.Scheduler := SchedulerOfThreadPool;
+  FServer.MaxConnections := 1000;
+
   LIOHandleSSL := Nil;
   sProtocol:='http';
   AKey_Settings:=Key_Settings;
@@ -244,6 +350,7 @@ begin
   if Assigned(LIOHandleSSL)  then
      LIOHandleSSL.Destroy;
   LLocalEvents.Destroy;
+  FreeAndNil(SchedulerOfThreadPool);
   FreeAndNil(FServer);
   Inherited;
 end;
@@ -383,6 +490,9 @@ begin
   else
     LastMessage:=sServerNotRunning;
 end;
+
+{ TLIdHTTPWebBrokerBridge }
+
 
 end.
 

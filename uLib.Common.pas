@@ -26,10 +26,14 @@ const
    SS_PHONE       = 'phone';
    SS_BRANCH      = 'branch';
    SS_TOKENID     = 'tokenid';
+   SS_SESSIONID   = 'sessionid';
 
    ROLE_ADMIN     = 'admin';
    ROLE_APPS      = 'apps';
    ROLE_STANDARD  = 'standard';
+
+   SECRET_CAPTION = 'Secret (%dbit)';
+   MY_SECRET = 'MyS3cr3tP@$$w0rdf0r3nCtpA1xZ12f';
 
 var
    db_MAIN,

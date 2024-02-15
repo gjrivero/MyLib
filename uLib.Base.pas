@@ -155,8 +155,12 @@ function NetHTTPReq( pMethod: TRESTRequestMethod;
                      LHeader: TNetHeaders=Nil
                     ): IHTTPResponse; Overload;
 
+function IndexOfList( LT:       TStrings;
+                      const     StTarget: String;
+                      Partial:  Boolean=false): Integer; overload;
+
 function IndexOfList( LB:       TStrings;
-                      const StTarget: String;
+                      const     StTarget: String;
                       Column:   Integer=1;
                       Partial:  Boolean=false;
                       CDiv: Char=ChDiv): Integer; overload;
@@ -891,34 +895,37 @@ procedure SetJSON( JSON: TJSONObject;
                     const fields: array of string;
                     const values: array of const);
 Var I: Integer;
-    S: String;
+    S,field: String;
 begin
   if (JSON<>Nil) then
      for I := Low(fields) to High(fields) do
       begin
-        JSON.RemovePair(fields[I]);
+        field:=fields[I];
+        //value:=JSON.Pairs[I].JsonValue.ToString;
+
+        JSON.RemovePair(field);
         case Values[I].VType of
          vtBoolean:
-           JSON.AddPair(fields[I], TJSONBool.Create(Values[I].VBoolean));
+           JSON.AddPair(field, TJSONBool.Create(Values[I].VBoolean));
          vtObject:
-           JSON.AddPair(fields[I], (Values[I].VObject As TJSONValue));
+           JSON.AddPair(field, (Values[I].VObject As TJSONValue));
          vtInt64:
-           JSON.AddPair(fields[I], Values[I].VInt64^);
+           JSON.AddPair(field, Values[I].VInt64^);
          vtInteger:
-           JSON.AddPair(fields[I], Values[I].VInteger);
+           JSON.AddPair(field, Values[I].VInteger);
          vtExtended,
          vtCurrency:
-           JSON.AddPair(fields[I], Values[I].VExtended^);
+           JSON.AddPair(field, Values[I].VExtended^);
          else
            if (Values[I].VType = vtVariant) then
-              JSON.AddPair(fields[I], TJSONNull.Create)
+              JSON.AddPair(field, TJSONNull.Create)
            else
               begin
                 S:=AssignVal(Values[I]).DeQuotedString;
                 if (S.StartsWith('{') or S.StartsWith('[')) then
-                   JSON.AddPair(fields[I],CreateTJSONValue(S))
+                   JSON.AddPair(field,CreateTJSONValue(S))
                 else
-                   JSON.AddPair(fields[I],TJSONString.Create(S));
+                   JSON.AddPair(field,S);
               end;
         end;
       end;
@@ -1631,12 +1638,34 @@ begin
   result:=Copy(S+StringOfChar(Ch,Len),1,Len);
 end;
 
+function IndexOfList( LT:       TStrings;
+                      const     StTarget: String;
+                      Partial:  Boolean=false): Integer; overload;
+Var I,P: Integer;
+    Ok:  Boolean;
+Begin
+  P:=-1;
+  for I:=0 To LT.Count-1 do
+   Begin
+     If Partial then
+        Ok:=UpperCase(Copy(LT[I],1,Length(StTarget)))=UpperCase(StTarget)
+     Else
+        Ok:=UpperCase(LT[I])=UpperCase(StTarget);
+     If Ok Then
+        Begin
+          P:=I;
+          Break;
+        End;
+   End;
+  Result:=P;
+End;
+
 
 Function IndexOfList( LB:       TStrings;
                       const StTarget: String;
                       Column:   Integer=1;
                       Partial:  Boolean=false;
-                      CDiv:     Char=ChDiv): Integer;
+                      CDiv:     Char=ChDiv): Integer;  overload;
 Var L,
     Index:    Integer;
     St,
