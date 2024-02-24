@@ -119,6 +119,8 @@ uses
 
     Datasnap.DSHTTP,
     Datasnap.DSSession,
+    IdIOHandler,
+    IdHeaderList,
     IdHTTPHeaderInfo,
 
     JOSE.Core.JWT,
@@ -146,6 +148,7 @@ Type
   TIdHTTPAppRequestHelper = class helper for TIdHTTPAppRequest
   public
     function GetRequestInfo: TIdEntityHeaderInfo;
+    procedure ProcessHeaders; override;
   end;
 
 
@@ -154,9 +157,25 @@ begin
   Result := FRequestInfo;
 end;
 
+procedure TIdHTTPAppRequestHelper.ProcessHeaders;
+begin
+  inherited;
+
+end;
+
+
+
 procedure TServerLocalEvents.OnGetSSLPassword(var APassword: String);
 begin
   APassword := GetStr(SSLCertificate,'password');
+end;
+
+function InternalReadLn(AIOHandler: TIdIOHandler): String;
+begin
+  Result := AIOHandler.ReadLn;
+{  if AIOHandler.ReadLnTimedout then begin
+    raise ; //EIdReadTimeout.Create(RSReadTimeout);
+  end;}
 end;
 
 procedure TServerLocalEvents.OnParseAuthentication(
@@ -169,6 +188,7 @@ var
   aData,
   SessionId,
   AuthValue: String;
+  TS: TStringList;
 begin
   if SameText(AAuthType, 'Bearer') then
   begin
@@ -176,12 +196,21 @@ begin
     if VerifyToken(MY_SECRET,AuthValue,aData) then
        begin
          var tSub:=GetStr(aData,'sub');
+         var LConn := AContext.Connection;
          SessionId:=GetStr(tSub,SS_SESSIONID);
-          with TIdHTTPAppRequest(Acontext).GetRequestInfo Do
+         var Pragma:='dssession='+SessionId+',dssessionexpires=120000';
          {
             'SID',
             'dssession='+SessionId+',dssessionexpires=120000');
          }
+         TS:=TStringList.create;
+         TS.addPair('Pragma',Pragma);
+         LConn.WriteHeader(TS);
+         Var I:=TDSSessionManager.Instance.GetSessionCount;
+         TDSSessionManager.Instance.GetOpenSessionKeys(TS);
+
+         aData:=TS.Text;
+         TS.Free;
          VUsername:='001';
          VHandled:=True;
        end;

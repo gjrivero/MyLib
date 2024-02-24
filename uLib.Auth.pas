@@ -107,7 +107,7 @@ end;
 
 procedure TUserWebAuthenticate.SetDataSession(var sJSON: String);
 begin
-  {}
+   {}
 end;
 
 procedure TUserWebAuthenticate.SetValue( Session: TDSSession;
@@ -204,18 +204,18 @@ begin
           sRole:='standard';
        UserRoles.Add(sRole);
        Session := TDSSessionManager.GetThreadSession;
-       SetValue(Session,SS_SESSIONID,Session.SessionName);
+       Token:=GetStr(aJSON,SS_TOKENID);
+       SetValue(Session,SS_SESSIONID, Session.SessionName);
        SetValue(Session,SS_USER, AUser);
+       SetValue(Session,SS_ROLE, sRole);
        SetValue(Session,SS_DEVELOPID, GetStr(aJSON,SS_DEVELOPID));
        SetValue(Session,SS_APPID, GetStr(aJSON,SS_APPID));
        SetValue(Session,SS_APPNAME, GetStr(aJSON,SS_APPNAME));
-       SetValue(Session,SS_DEVELOPID, GetStr(aJSON,SS_DEVELOPID));
        SetValue(Session,SS_LOGINID, GetStr(aJSON,SS_LOGINID)); // La tabla debe tener ID
        SetValue(Session,SS_FIRSTNAME, GetStr(aJSON,SS_FIRSTNAME));
        SetValue(Session,SS_LASTNAME, GetStr(aJSON,SS_LASTNAME));
        SetValue(Session,SS_EMAIL, GetStr(aJSON,SS_EMAIL));
        SetValue(Session,SS_PHONE, GetStr(aJSON,SS_PHONE));
-       SetValue(Session,SS_ROLE, GetStr(aJSON,SS_ROLE));
        SetValue(Session,SS_BRANCH, GetStr(aJSON,SS_BRANCH));
        SetValue(Session,SS_TERMINAL, GetStr(aJSON,SS_TERMINAL));
        //------------------------------------------------
@@ -227,9 +227,9 @@ begin
                         Session.SessionName,
                         GetInt(aJSON,SS_LOGINID),AUser]);
             BuildToken(sData,Token);
-
-            SetValue(Session,SS_TOKENID,Token);
           end;
+       if not Token.IsEmpty then
+          SetValue(Session,SS_TOKENID,Token);
        //------------------------------------------------
        SetDataSession(aJSON);
      end;
