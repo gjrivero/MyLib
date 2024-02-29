@@ -148,7 +148,6 @@ Type
   TIdHTTPAppRequestHelper = class helper for TIdHTTPAppRequest
   public
     function GetRequestInfo: TIdEntityHeaderInfo;
-    procedure ProcessHeaders; override;
   end;
 
 
@@ -156,13 +155,6 @@ function TIdHTTPAppRequestHelper.GetRequestInfo: TIdEntityHeaderInfo;
 begin
   Result := FRequestInfo;
 end;
-
-procedure TIdHTTPAppRequestHelper.ProcessHeaders;
-begin
-  inherited;
-
-end;
-
 
 
 procedure TServerLocalEvents.OnGetSSLPassword(var APassword: String);
