@@ -1091,6 +1091,8 @@ function setQueryPaged(Const dbTable, sFields, sWhere: String): String;
              if (aField='order') then
                 sOrderBy:=aValue
              else
+             if (aField='authtoken') then
+             else
                 begin
                   Var lExpr:='';
                   if (Pos('|',aValue)>0) then

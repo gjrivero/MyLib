@@ -21,28 +21,32 @@ Type
    TUserWebAuthenticate = class
      function ActionLogin( const sJSON: String): string;  virtual;
      function ActionSignUp( const sJSON: String): string;  virtual;
-     function OtherActions( action: Integer; const method: string): string; virtual;
-     procedure GetAction(Const mPath, sPath: String; var action: Integer); virtual;
+     function OtherActions( const uURL: String;
+                                  action: Integer;
+                            const method: string): string; virtual;
+     procedure GetAction( Const uURL, mPath, sPath: String;
+                          var action: Integer); virtual;
      procedure SetDataSession(var sJSON: String); virtual;
      procedure CommonAuth( const aMainPath, sJSON: string;
                            UserRoles: TStrings;
                            var aResp: String);
      procedure SetValue(Session: TDSSession; const Key, Value: String);
-     constructor Create( Request: TWebRequest; var Credentials: String);
+     constructor Create( App_ID: Integer; Request: TWebRequest; var Credentials: String);
      destructor destroy; virtual;
    protected
      AUser,
      APassword,
-     Host_Url,
-     Base_Url,
      Method,
      JSONBody: string;
+     TokenParam: Boolean;
      AHeaders: TStringList;
+     AppID,
      MethodIndex: Integer;
    private
-     UseToken: Boolean;
-     WebRequest: TWebRequest;
-     procedure BuildToken(const sClaims: String; Var sToken: String);
+     Host_Url,
+     Base_Url: String;
+     //UseToken,
+     //procedure BuildToken(const sClaims: String; Var sToken: String);
    public
    end;
 
@@ -53,17 +57,18 @@ Uses
     System.Hash,
     System.StrUtils,
     System.DateUtils,
+    System.NetEncoding,
     System.Generics.Collections,
 
     IdHTTPHeaderInfo,
     IdHTTPWebBrokerBridge,
-
+(*
     JOSE.Core.JWT,
     JOSE.Core.JWS,
     JOSE.Core.JWK,
     JOSE.Core.JWA,
     JOSE.Core.Builder,
-
+*)
     uLib.Base,
     uLib.Data,
     uLib.Common,
@@ -82,19 +87,22 @@ begin
   Result := FRequestInfo;
 end;
 
-function TUserWebAuthenticate.OtherActions( action: Integer; const method: string): string;
+function TUserWebAuthenticate.OtherActions( const uURL: String;
+                                            action: Integer;
+                                            const method: string): string;
 begin
   result:='{}';
 end;
 
-procedure TUserWebAuthenticate.GetAction(Const mPath, sPath: String; var action: Integer);
+procedure TUserWebAuthenticate.GetAction( Const uURL, mPath, sPath: String;
+                                          var action: Integer);
 begin
   action:=ACT_DEFAULT;
   // /api/main/login
   if sPath=METHOD_PING then
      action:=ACT_DIAGNOSTIC
   else
-     if (GetStr(Base_Url,MethodIndex-1,'/')=mPath) then
+     if (GetStr(uURL,MethodIndex-1,'/')=mPath) then
         if sPath='login' then
            action:=ACT_LOGIN
         else
@@ -128,6 +136,7 @@ begin
   result:='';
 end;
 
+(*
 procedure TUserWebAuthenticate.BuildToken(const sClaims: String; Var sToken: String);
 var
   LToken: TJWT;
@@ -158,6 +167,7 @@ begin
     LToken.Free;
   end;
 end;
+*)
 
 procedure TUserWebAuthenticate.CommonAuth( const aMainPath, sJSON: string;
                                            UserRoles: TStrings;
@@ -172,11 +182,11 @@ var
    Valid: Boolean;
 begin
   errorMsg:='Invalid invocation!';
-  GetAction(aMainPath,Method,Action);
+  GetAction(Base_Url.ToLower,aMainPath,Method,Action);
   aResp:='';
   SetJSON(aResp,[SS_VALID],[false]);
   SetJSON(aJSON,[SS_VALID],[false]);
-  if action=ACT_DEFAULT then
+  if Not TokenParam And (action=ACT_DEFAULT) then
      Exit;
   //---------------------------------
   AUser:=GetStr(sJSON,SS_USER);
@@ -194,7 +204,10 @@ begin
           aJSON:=ActionLogin(sJSON);
      End;
    else
-     aJSON:=OtherActions(Action,Method);
+      if TokenParam then
+         aJSON:=ActionLogin(sJSON)
+      else
+         aJSON:=OtherActions(Base_Url.ToLower,Action,Method);
   end;
   valid:=GetBool(aJSON,SS_VALID);
   if Valid then
@@ -219,6 +232,7 @@ begin
        SetValue(Session,SS_BRANCH, GetStr(aJSON,SS_BRANCH));
        SetValue(Session,SS_TERMINAL, GetStr(aJSON,SS_TERMINAL));
        //------------------------------------------------
+       (*
        if UseToken then
           begin
             sData:='';
@@ -230,35 +244,39 @@ begin
           end;
        if not Token.IsEmpty then
           SetValue(Session,SS_TOKENID,Token);
+       *)
        //------------------------------------------------
        SetDataSession(aJSON);
      end;
   aResp:=aJSON;
 end;
 
-constructor TUserWebAuthenticate.Create( Request: TWebRequest; var Credentials: String);
+constructor TUserWebAuthenticate.Create( App_ID: Integer; Request: TWebRequest; var Credentials: String);
 Var
    aName,
    aValue,
+   aQuery,
+   lMethod,
    sHeader: String;
    I: Integer;
 begin
-  WebRequest:=Request;
-
-  Host_Url:=LowerCase(WebRequest.Host);
-  Base_Url:=LowerCase(WebRequest.PathInfo);
-  if ContainsText(Host_Url,'api') then
+  AppID:=APP_ID;
+  Host_Url:=LowerCase(Request.Host);
+  Base_Url:=Request.PathInfo;
+  aQuery:=Request.Query;
+  lMethod:=Request.Method;
+  if ContainsText(Host_Url.ToLower,'api') then
      // '/otp/account/2'
      MethodIndex:=3
   else
      // '/api/otp/account/2'
      MethodIndex:=4;
-  if ContainsText(Base_Url,METHOD_PING) then
+  if ContainsText(Base_Url.ToLower,METHOD_PING) then
      Method:=METHOD_PING
   else
-     Method:=LowerCase(GetStr(Base_Url,MethodIndex,'/'));
+     Method:=GetStr(Base_Url.ToLower,MethodIndex,'/');
   AHeaders:=TStringList.Create;
-  with TIdHTTPAppRequest(WebRequest).GetRequestInfo Do
+  with TIdHTTPAppRequest(Request).GetRequestInfo Do
    for I:= 0 to RawHeaders.Count - 1 do
     begin
       sHeader:=RawHeaders[I];
@@ -266,17 +284,37 @@ begin
       aValue:= GetStr(sHeader,2,':');
       AHeaders.AddPair(aName,aValue );
     end;
-  JSONBody:= TIdHTTPAppRequest(WebRequest).Content;
+  JSONBody:='';
+  if (lMethod='POST') or (lMethod='PUT') or (lMethod='PATCH') then
+     JSONBody:= TIdHTTPAppRequest(Request).Content;
   AUser:=GetStr(Credentials,SS_USER);
   APassword:=GetStr(Credentials,SS_PASSWORD);
-  UseToken:=false;
+  //UseToken:=false;
+  TokenParam:=false;
   if AUser.IsEmpty And APassword.IsEmpty then
      begin
-       AUser:=GetStr(JSONBody,SS_USER);
-       APassword:=GetStr(JSONBody,SS_PASSWORD);
-       SetJSON(Credentials,[SS_USER],[AUser]);
-       SetJSON(Credentials,[SS_PASSWORD],[APassword]);
+       Var sToken:=TNetEncoding.Base64.Decode(GetStr(JSONBody,'authtoken'));
+       if sToken.IsEmpty then
+          begin
+            sToken:=Copy(aQuery,Pos('authtoken',aQuery.ToLower),Length(aQuery));
+            Var p:=Pos('&',sToken);
+            if P=0 then
+               P:=Length(sToken);
+            sToken:=Copy(sToken,1,P);
+            sToken:=GetStr(sToken,2,'=');
+           end;
+       if Not sToken.IsEmpty and (lMethod='GET') then
+          begin
+            sToken:=TNetEncoding.Base64.Decode(sToken);
+            AUser:=GetStr(sToken,1,':');
+            APassword:=GetStr(sToken,2,':');
+            SetJSON(Credentials,[SS_USER],[AUser]);
+            SetJSON(Credentials,[SS_PASSWORD],[APassword]);
+            TokenParam:=tRUE;
+          end;
+       (*
        UseToken:=true;
+       *)
      end;
 end;
 

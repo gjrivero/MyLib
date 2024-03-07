@@ -23,10 +23,12 @@ type
   public
     SSLCertificate: String;
   private
+ (*
     function VerifyToken( const My_Secret, AuthValue: String;
                           var aData: string): Boolean;
     function VerifyTokenComplete( const My_Secret, AuthValue: String;
                                   var aData: string): Boolean;
+  *)
     procedure OnGetSSLPassword(var APassword: String);
     procedure OnQuerySSLPort(APort: TIdPort; var AUseSSL: Boolean);
     procedure OnParseAuthentication( AContext: TIdContext;
@@ -123,6 +125,7 @@ uses
     IdHeaderList,
     IdHTTPHeaderInfo,
 
+(*
     JOSE.Core.JWT,
     JOSE.Core.JWS,
     JOSE.Core.JWK,
@@ -131,7 +134,7 @@ uses
   //  JOSE.Types.JSON,
   //  JOSE.Producer,
   //  JOSE.Types.Bytes,
-
+*)
     uLib.Base,
     uLib.Data,
     uLib.DataModule,
@@ -182,6 +185,7 @@ var
   AuthValue: String;
   TS: TStringList;
 begin
+(*
   if SameText(AAuthType, 'Bearer') then
   begin
     AuthValue := AAuthData;
@@ -207,6 +211,7 @@ begin
          VHandled:=True;
        end;
   end;
+*)
 end;
 
 procedure TServerLocalEvents.OnQuerySSLPort(APort: TIdPort; var AUseSSL: Boolean);
@@ -214,6 +219,7 @@ begin
   AUseSSL := True;
 end;
 
+(*
 function TServerLocalEvents.VerifyToken( const My_Secret, AuthValue: String;
                                          var aData: string): Boolean;
 var
@@ -262,7 +268,7 @@ begin
     LKey.Free;
   end;
 end;
-
+*)
 { TIdHTTPWebBrokerServer }
 
 procedure TerminateThreads;
@@ -315,7 +321,7 @@ begin
   LLocalEvents := TServerLocalEvents.Create;
   FServer := TIdHTTPWebBrokerBridge.Create(Nil);
 
-  FServer.OnParseAuthentication := LLocalEvents.OnParseAuthentication;
+  // FServer.OnParseAuthentication := LLocalEvents.OnParseAuthentication;
 
   App:=TDSHTTPApplication(FServer);
 
