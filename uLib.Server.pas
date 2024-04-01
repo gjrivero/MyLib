@@ -100,7 +100,7 @@ resourcestring
     '   - "exit" to close the application';
 
 const
-  cArrow = '->';
+  cArrow = '-> ';
   cCommandStart = 'start';
   cCommandStop = 'stop';
   cCommandStatus = 'status';

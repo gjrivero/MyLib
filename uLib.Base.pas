@@ -232,6 +232,7 @@ uses
    ,System.StrUtils
    ,System.NetEncoding
    ,FireDAC.Stan.Intf
+
    ,IdSSLOpenSSL
    ,IdHTTP
    ,IdSMTP
@@ -243,9 +244,13 @@ uses
    ,IdAttachmentFile
    ,IdMessageBuilder
    ,IdExplicitTLSClientServerBase
+
    ,uLib.DataModule
    ,uLib.Common
    ,uLib.Crypt;
+
+const
+   JSONIndent = 2;
 
 function VersionStr(nuVerMayor, nuVerMenor, nuVerRelease: Integer): String;
 Begin
@@ -941,7 +946,7 @@ begin
   if JSON<>Nil then
      begin
        SetJSON(JSON,fields,values);
-       sJSON:=JSON.ToString;
+       sJSON:=JSON.Format(JSONIndent);
        JSON.Destroy;
      end;
 end;
@@ -1323,7 +1328,7 @@ begin
      begin
        for var I := Low(fields) to High(fields) do
          JSON.RemovePair(fields[I]);
-       sJSON:=JSON.ToString;
+       sJSON:=JSON.Format(JSONIndent);
        FreeAndNil(JSON);
      end;
 end;
@@ -1335,7 +1340,7 @@ begin
   if JSON<>Nil then
      begin
        JSON.RemovePair(fieldName);
-       sJSON:=JSON.ToString;
+       sJSON:=JSON.Format(JSONIndent);
        FreeAndNil(JSON);
      end;
 end;
@@ -1551,7 +1556,7 @@ begin
     JSONValue:=oJSON.GetValue(FieldName);
     if (JSONValue is TJSONArray) or
        (JSONValue is TJSONObject) then
-       St:=JSONValue.ToString
+       St:=JSONValue.Format(JSONIndent)
     else
        If oJSON.TryGetValue<string>(fieldname,St) Then
           ;
@@ -1745,7 +1750,7 @@ begin
   nClient.ProtocolVersion:=THTTPProtocolVersion.HTTP_2_0;  //?
   nClient.ContentType:='application/json';
   nClient.Accept:='*/*';
-  //nClient.AcceptEncoding:='gzip, deflate, br';
+  nClient.AcceptEncoding:='gzip, deflate, br';
   nClient.AllowCookies:=True;
 
   nReq:=TNetHTTPRequest.Create(Nil);
@@ -1787,7 +1792,7 @@ function NetHTTPReq( pMethod: TRESTRequestMethod;
                      LHeader: TNetHeaders=Nil
                     ): IHTTPResponse; Overload;
 begin
-  result:=NetHTTPReq(pMethod,BaseURI, Path,JSON.ToString,LHeader);
+  result:=NetHTTPReq(pMethod,BaseURI, Path,JSON.Format(JSONIndent),LHeader);
 end;
 
 procedure SendEmail( const aFromAddresses,

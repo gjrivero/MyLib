@@ -31,7 +31,7 @@ Type
                            UserRoles: TStrings;
                            var aResp: String);
      procedure SetValue(Session: TDSSession; const Key, Value: String);
-     constructor Create( App_ID: Integer; Request: TWebRequest; var Credentials: String);
+     constructor Create( Request: TWebRequest; var Credentials: String);
      destructor destroy; virtual;
    protected
      AUser,
@@ -39,9 +39,8 @@ Type
      Method,
      JSONBody: string;
      TokenParam: Boolean;
-     AHeaders: TStringList;
-     AppID,
      MethodIndex: Integer;
+     AHeaders: TStringList;
    private
      Host_Url,
      Base_Url: String;
@@ -251,7 +250,7 @@ begin
   aResp:=aJSON;
 end;
 
-constructor TUserWebAuthenticate.Create( App_ID: Integer; Request: TWebRequest; var Credentials: String);
+constructor TUserWebAuthenticate.Create( Request: TWebRequest; var Credentials: String);
 Var
    aName,
    aValue,
@@ -260,7 +259,6 @@ Var
    sHeader: String;
    I: Integer;
 begin
-  AppID:=APP_ID;
   Host_Url:=LowerCase(Request.Host);
   Base_Url:=Request.PathInfo;
   aQuery:=Request.Query;
@@ -286,7 +284,9 @@ begin
     end;
   JSONBody:='';
   if (lMethod='POST') or (lMethod='PUT') or (lMethod='PATCH') then
-     JSONBody:= TIdHTTPAppRequest(Request).Content;
+     begin
+       JSONBody:= TIdHTTPAppRequest(Request).Content;
+     end;
   AUser:=GetStr(Credentials,SS_USER);
   APassword:=GetStr(Credentials,SS_PASSWORD);
   //UseToken:=false;
