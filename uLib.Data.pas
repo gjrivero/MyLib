@@ -585,8 +585,14 @@ begin
   aHeader:=TStringList.Create;
   SetHeader(aHeader);
   aHeader.Add(sCmd.Text);
+
   FDM.Cmd.CommandText.Clear;
   FDM.Cmd.CommandText.Assign(aHeader);
+  if pParams<>Nil then
+     begin
+       FDM.Cmd.Params:=pParams;
+       FDM.Cmd.Prepare;
+     end;
   if Not aCommit then
       FDM.Cnx.StartTransaction;
   Try
@@ -636,11 +642,13 @@ begin
      begin
        cCmd.Add('SET TRANSACTION ISOLATION LEVEL READ COMMITTED;');
        cCmd.Add('DECLARE ');
+       cCmd.Add('   @ErrMsg nvarchar(4000),');
+       cCmd.Add('   @ErrorSeverity INT,');
+       cCmd.Add('   @ErrorState INT,');
+       cCmd.Add('   @ErrorNumber INT,');
+       cCmd.Add('   @ErrorLine INT'+IfThen(sDecl=Nil,';',','));
        if sDecl<>Nil then
           cCmd.AddStrings(sDecl);
-       cCmd.Add('  '+IfThen(sDecl<>Nil,',',' ')+'@Error INT=0');
-       cCmd.Add('  ,@ErrSeverity int=0');
-       cCmd.Add('  ,@ErrMsg nvarchar(4000)='''';');
        cCmd.Add('BEGIN TRANSACTION;');
        cCmd.Add('BEGIN TRY');
      end;
@@ -680,22 +688,21 @@ begin
      end;
    TFDRDBMSKinds.MSSQL:
      begin
-       cCmd.Add('  IF @ERROR>0');
-       cCmd.Add('  BEGIN');
-       cCmd.Add('    ROLLBACK;');
-       cCmd.Add('    SELECT @ErrMsg=''ERROR [''+CAST(@ERROR AS VARCHAR(5))+''] IN TRASACTION'';');
-       cCmd.Add('    SELECT @ERROR error, @ErrMsg errmsg;');
-       cCmd.Add('    RAISERROR(@ErrMsg, @ERROR,1);');
-       cCmd.Add('  END;');
        cCmd.Add('  COMMIT TRANSACTION;');
-       cCmd.Add('  SELECT @ERROR error'+ifThen(sFields<>'',', '+sFields,'')+';');
+       cCmd.Add('  SELECT 0 error'+ifThen(sFields<>'',', '+sFields,'')+';');
        cCmd.Add('END TRY');
        cCmd.Add('BEGIN CATCH');
-       cCmd.Add('  IF (@@TRANCOUNT>0) or (@ERROR<>0) ');
+       cCmd.Add('  IF (@@TRANCOUNT>0)');
        cCmd.Add('     ROLLBACK;');
-       cCmd.Add('  SELECT @ErrMsg = ERROR_MESSAGE(),@ErrSeverity = ERROR_SEVERITY()');
-       cCmd.Add('  SELECT -1 error, @ErrMsg errmsg, @errseverity errseverity;');
-       cCmd.Add('  RAISERROR(@ErrMsg, @ErrSeverity, 1);');
+       cCmd.Add('  SELECT');
+       cCmd.Add('     @ErrMsg = ERROR_MESSAGE(),');
+       cCmd.Add('     @ErrorSeverity = ERROR_SEVERITY(),');
+       cCmd.Add('     @ErrorState = ERROR_STATE(),');
+       cCmd.Add('     @ErrorNumber = ERROR_NUMBER(),');
+       cCmd.Add('     @ErrorLine = ERROR_LINE();');
+       cCmd.Add('  SET @ErrMsg = @ErrMsg+Char(13)+');
+       cCmd.Add('      ''Line: ''+Cast(@ErrorLine As Varchar(10));');
+       cCmd.Add('  SELECT -1 error, @ErrMsg errmsg, @ErrorSeverity errseverity;');
        cCmd.Add('END CATCH;');
      end;
    TFDRDBMSKinds.MySQL:
@@ -723,7 +730,7 @@ begin
      end;
   end;
 {$IFDEF DEBUG}
-  cCmd.SaveToFile('trans.txt');
+  //cCmd.SaveToFile('trans.txt');
 {$ENDIF}
   FDM.Qry.SQL.Clear;
   FDM.Qry.SQL.Assign(cCmd);
@@ -747,11 +754,11 @@ begin
             end;
        end
     else
-       //if Not autoCommit then
+       //if Not acommit then
           FDM.Cnx.Commit;
   except
    on E: EFDDBEngineException do  begin
-           //if Not autoCommit then
+           //if Not aCommit then
               FDM.Cnx.Rollback;
            SaveLogFile(FDM.Qry.SQL.Text);
            raise Exception.Create(E.Message);

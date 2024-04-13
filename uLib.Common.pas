@@ -13,34 +13,33 @@ const
    SS_VALID       = 'valid';
    SS_ERROR       = 'error';
    SS_MESSAGE     = 'message';
-   SS_CUSTID      = 'custid';
-   SS_LOGINID     = 'loginid';
-   SS_FIRSTNAME   = 'firstname';
-   SS_LASTNAME    = 'lastname';
+   SS_CUSTID      = 'cust_id';
+   SS_LOGINID     = 'login_id';
+   SS_FIRSTNAME   = 'first_name';
+   SS_LASTNAME    = 'last_name';
    SS_TERMINAL    = 'terminal';
    SS_APPID       = 'appid';
    SS_APPNAME     = 'appname';
-   SS_DEVELOPID   = 'developid';
+   SS_DEVELOPID   = 'develop_id';
    SS_DEVELOPER   = 'developer';
+   SS_BUSINESS    = 'business';
    SS_EMAIL       = 'email';
    SS_PHONE       = 'phone';
    SS_BRANCH      = 'branch';
-   SS_TOKENID     = 'tokenid';
-   SS_SESSIONID   = 'sessionid';
+   SS_TOKENID     = 'tokenId';
+   SS_SESSIONID   = 'session_id';
 
    ROLE_ADMIN     = 'admin';
    ROLE_APPS      = 'apps';
    ROLE_STANDARD  = 'standard';
-
-   SECRET_CAPTION = 'Secret (%dbit)';
-   MY_SECRET = 'MyS3cr3tP@$$w0rdf0r3nCtpA1xZ12f';
 
 var
    db_MAIN,
    db_CUST,
    ActiveMain,
    ActiveCustomer,
-   DefConnection: String;
+   DefConnection,
+   MailHostSettings: String;
    ACustomerList: TStringList;
    RDBMSKind: TFDRDBMSKind;
 

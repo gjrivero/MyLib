@@ -12,6 +12,7 @@ uses
    System.Classes,
    System.Variants,
    System.Generics.Collections,
+   FireDAC.Stan.param,
    uLib.Base,
    uLib.Data,
    uLib.Helpers;
@@ -118,7 +119,7 @@ Type
     end;
 
 
-procedure processSQL(sqlCmd: TStringList; aSave: boolean=false);
+procedure processSQL(sqlCmd: TStringList; pParams: TFDParams=nil; aSave: boolean=false);
 
 implementation
 
@@ -136,7 +137,7 @@ Const
     PR_ENTP_SEQUENCE = 'aud_ent_seq';
 
 
-procedure processSQL(sqlCmd: TStringList; aSave: boolean=false);
+procedure processSQL(sqlCmd: TStringList; pParams: TFDParams=nil; aSave: boolean=false);
 Var
    i: Integer;
    sCmd: TStringList;
@@ -155,7 +156,7 @@ begin
           end;
           if aSave then
              sCmd.SaveToFile('qry'+FormatDateTime('mmddhhnnss',Now)+'.txt');
-          ExecCmd(sCmd.Text);
+          ExecCmd(sCmd.Text,pParams);
           //ExecTransact(sCmd);
           sCmd.Clear;
         end
@@ -173,7 +174,7 @@ begin
        end;
        if aSave then
           sCmd.SaveToFile('qry'+FormatDateTime('mmddhhnnss',Now)+'.txt');
-       ExecCmd(sCmd.Text);
+       ExecCmd(sCmd.Text,pParams);
        //ExecTransact(sCmd);
      end;
   sCmd.Destroy;

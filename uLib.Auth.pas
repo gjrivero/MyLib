@@ -19,8 +19,10 @@ Const
 
 Type
    TUserWebAuthenticate = class
-     function ActionLogin( const sJSON: String): string;  virtual;
-     function ActionSignUp( const sJSON: String): string;  virtual;
+     function ActionLogin( const sJSON: String): string; virtual;
+     function ActionSignUp( const sJSON: String): string; virtual;
+     function ActionDeveloper( const sJSON: String): string; virtual;
+     function ActionVerify(Const uURL: String): string; virtual;
      function OtherActions( const uURL: String;
                                   action: Integer;
                             const method: string): string; virtual;
@@ -36,16 +38,13 @@ Type
    protected
      AUser,
      APassword,
-     Method,
      JSONBody: string;
-     TokenParam: Boolean;
      MethodIndex: Integer;
      AHeaders: TStringList;
+     TokenParam: Boolean;
    private
-     Host_Url,
+     Method,
      Base_Url: String;
-     //UseToken,
-     //procedure BuildToken(const sClaims: String; Var sToken: String);
    public
    end;
 
@@ -61,13 +60,7 @@ Uses
 
     IdHTTPHeaderInfo,
     IdHTTPWebBrokerBridge,
-(*
-    JOSE.Core.JWT,
-    JOSE.Core.JWS,
-    JOSE.Core.JWK,
-    JOSE.Core.JWA,
-    JOSE.Core.Builder,
-*)
+
     uLib.Base,
     uLib.Data,
     uLib.Common,
@@ -105,11 +98,11 @@ begin
         if sPath='login' then
            action:=ACT_LOGIN
         else
-           if sPath='signup' then
-              action:=ACT_SIGNUP
-           else
-              if sPath='verify' then
-                 action:=ACT_VERIFY;
+        if sPath='signup' then
+           action:=ACT_SIGNUP
+        else
+        if sPath='verify' then
+           action:=ACT_VERIFY;
 end;
 
 procedure TUserWebAuthenticate.SetDataSession(var sJSON: String);
@@ -130,50 +123,26 @@ begin
   result:='';
 end;
 
+function TUserWebAuthenticate.ActionVerify(Const uURL: String): string;
+begin
+  result:='';
+end;
+
 function TUserWebAuthenticate.ActionLogin( const sJSON: String): string;
 begin
   result:='';
 end;
 
-(*
-procedure TUserWebAuthenticate.BuildToken(const sClaims: String; Var sToken: String);
-var
-  LToken: TJWT;
-  LAlg: TJOSEAlgorithmId;
+function TUserWebAuthenticate.ActionDeveloper( const sJSON: String): string;
 begin
-  LToken := TJWT.Create;
-  try
-    // Token claims
-    LToken.Claims.Subject := sClaims;
-    LToken.Claims.IssuedAt := Now;
-    LToken.Claims.Expiration := Now + 15 * OneMinute;
-    LToken.Claims.Issuer := 'Saint-Sync-Server';
-    // Signing algorithm
-    // case cbbAlgorithm.ItemIndex of
-    //  0: LAlg := TJOSEAlgorithmId.HS256;
-    //  1: LAlg := TJOSEAlgorithmId.HS384;
-    //  2: LAlg := TJOSEAlgorithmId.HS512;
-    //  else LAlg := TJOSEAlgorithmId.HS256;
-    // end;
-    LAlg := TJOSEAlgorithmId.HS512;
-    // Signing and compact format creation.
-    sToken:= TJOSE.SerializeCompact(MY_SECRET, LAlg, LToken);
-    // Token in compact representation
-    // Header and Claims JSON representation
-    // memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
-    // memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
-  finally
-    LToken.Free;
-  end;
+  result:='';
 end;
-*)
 
 procedure TUserWebAuthenticate.CommonAuth( const aMainPath, sJSON: string;
                                            UserRoles: TStrings;
                                            var aResp: String);
 var
    Session: TDSSession;
-   Token,
    sData,
    aJSON,
    errorMsg: string;
@@ -188,9 +157,6 @@ begin
   if Not TokenParam And (action=ACT_DEFAULT) then
      Exit;
   //---------------------------------
-  AUser:=GetStr(sJSON,SS_USER);
-  APassword:=GetStr(sJSON,SS_PASSWORD);
-  //---------------------------------
   case Action of
    ACT_DIAGNOSTIC:
      aJSON:='{"valid":true}';
@@ -202,6 +168,8 @@ begin
        ACT_LOGIN:
           aJSON:=ActionLogin(sJSON);
      End;
+   ACT_VERIFY:
+      aJSON:=ActionVerify(Base_Url);
    else
       if TokenParam then
          aJSON:=ActionLogin(sJSON)
@@ -216,7 +184,6 @@ begin
           sRole:='standard';
        UserRoles.Add(sRole);
        Session := TDSSessionManager.GetThreadSession;
-       Token:=GetStr(aJSON,SS_TOKENID);
        SetValue(Session,SS_SESSIONID, Session.SessionName);
        SetValue(Session,SS_USER, AUser);
        SetValue(Session,SS_ROLE, sRole);
@@ -231,20 +198,6 @@ begin
        SetValue(Session,SS_BRANCH, GetStr(aJSON,SS_BRANCH));
        SetValue(Session,SS_TERMINAL, GetStr(aJSON,SS_TERMINAL));
        //------------------------------------------------
-       (*
-       if UseToken then
-          begin
-            sData:='';
-            SetJSON(sData,['Id', SS_SESSIONID, SS_LOGINID, SS_USER],
-                       [Session.Id,
-                        Session.SessionName,
-                        GetInt(aJSON,SS_LOGINID),AUser]);
-            BuildToken(sData,Token);
-          end;
-       if not Token.IsEmpty then
-          SetValue(Session,SS_TOKENID,Token);
-       *)
-       //------------------------------------------------
        SetDataSession(aJSON);
      end;
   aResp:=aJSON;
@@ -252,23 +205,25 @@ end;
 
 constructor TUserWebAuthenticate.Create( Request: TWebRequest; var Credentials: String);
 Var
+   sToken,
    aName,
    aValue,
    aQuery,
    lMethod,
+   Host,
    sHeader: String;
    I: Integer;
 begin
-  Host_Url:=LowerCase(Request.Host);
+  Host:=LowerCase(Request.Host);
   Base_Url:=Request.PathInfo;
   aQuery:=Request.Query;
   lMethod:=Request.Method;
-  if ContainsText(Host_Url.ToLower,'api') then
-     // '/otp/account/2'
-     MethodIndex:=3
+  if ContainsText(Host.ToLower,'api') then
+     // '/v1/otp/account/2'
+     MethodIndex:=4
   else
-     // '/api/otp/account/2'
-     MethodIndex:=4;
+     // '/api/v1/otp/account/2'
+     MethodIndex:=5;
   if ContainsText(Base_Url.ToLower,METHOD_PING) then
      Method:=METHOD_PING
   else
@@ -282,19 +237,25 @@ begin
       aValue:= GetStr(sHeader,2,':');
       AHeaders.AddPair(aName,aValue );
     end;
+  sToken:='';
   JSONBody:='';
-  if (lMethod='POST') or (lMethod='PUT') or (lMethod='PATCH') then
+  if (lMethod='POST') then
      begin
        JSONBody:= TIdHTTPAppRequest(Request).Content;
+       if AUser.IsEmpty and
+          APassword.IsEmpty and
+          ContainsText(JSONBody,'user') then
+          SetJSON( Credentials,
+                   [SS_USER,SS_PASSWORD],
+                   [GetStr(JSONBody,'user'),GetStr(JSONBody,'password')]);
      end;
   AUser:=GetStr(Credentials,SS_USER);
   APassword:=GetStr(Credentials,SS_PASSWORD);
-  //UseToken:=false;
   TokenParam:=false;
   if AUser.IsEmpty And APassword.IsEmpty then
      begin
-       Var sToken:=TNetEncoding.Base64.Decode(GetStr(JSONBody,'authtoken'));
-       if sToken.IsEmpty then
+       if sToken.IsEmpty and
+          (Pos('authtoken',aQuery.ToLower)>0) then
           begin
             sToken:=Copy(aQuery,Pos('authtoken',aQuery.ToLower),Length(aQuery));
             Var p:=Pos('&',sToken);
@@ -310,11 +271,8 @@ begin
             APassword:=GetStr(sToken,2,':');
             SetJSON(Credentials,[SS_USER],[AUser]);
             SetJSON(Credentials,[SS_PASSWORD],[APassword]);
-            TokenParam:=tRUE;
+            TokenParam:=True;
           end;
-       (*
-       UseToken:=true;
-       *)
      end;
 end;
 

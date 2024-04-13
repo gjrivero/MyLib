@@ -23,12 +23,6 @@ type
   public
     SSLCertificate: String;
   private
- (*
-    function VerifyToken( const My_Secret, AuthValue: String;
-                          var aData: string): Boolean;
-    function VerifyTokenComplete( const My_Secret, AuthValue: String;
-                                  var aData: string): Boolean;
-  *)
     procedure OnGetSSLPassword(var APassword: String);
     procedure OnQuerySSLPort(APort: TIdPort; var AUseSSL: Boolean);
     procedure OnParseAuthentication( AContext: TIdContext;
@@ -337,6 +331,7 @@ begin
   ACrypted:=Crypted;
   LoadConnectionSettings(AppFileName,Key_Settings,IV,Crypted,LocalDir);
   HostSettings:=GetStr(GetAppSettings,'host');
+  MailHostSettings:=GetStr(GetAppSettings,'mail_host');
   DomainPrefix:=GetBool(HostSettings,'domain_prefix');
   FServer.DefaultPort:=GetInt(HostSettings,'http_port');
   aSSLCertificate:=GetStr(HostSettings,'certificates');

@@ -249,8 +249,10 @@ uses
    ,uLib.Common
    ,uLib.Crypt;
 
+(*
 const
    JSONIndent = 2;
+*)
 
 function VersionStr(nuVerMayor, nuVerMenor, nuVerRelease: Integer): String;
 Begin
@@ -853,7 +855,7 @@ Begin
      End;
 End;
 
-Function  GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
+Function GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
 var St,
     sFields: String;
     T,P: Integer;
@@ -946,7 +948,8 @@ begin
   if JSON<>Nil then
      begin
        SetJSON(JSON,fields,values);
-       sJSON:=JSON.Format(JSONIndent);
+       //sJSON:=JSON.Format(JSONIndent);
+       sJSON:=JSON.ToJSON;
        JSON.Destroy;
      end;
 end;
@@ -1328,7 +1331,8 @@ begin
      begin
        for var I := Low(fields) to High(fields) do
          JSON.RemovePair(fields[I]);
-       sJSON:=JSON.Format(JSONIndent);
+       //sJSON:=JSON.Format(JSONIndent);
+       sJSON:=JSON.ToJSON;
        FreeAndNil(JSON);
      end;
 end;
@@ -1340,7 +1344,8 @@ begin
   if JSON<>Nil then
      begin
        JSON.RemovePair(fieldName);
-       sJSON:=JSON.Format(JSONIndent);
+       //sJSON:=JSON.Format(JSONIndent);
+       sJSON:=JSON.ToJSON;
        FreeAndNil(JSON);
      end;
 end;
@@ -1556,7 +1561,7 @@ begin
     JSONValue:=oJSON.GetValue(FieldName);
     if (JSONValue is TJSONArray) or
        (JSONValue is TJSONObject) then
-       St:=JSONValue.Format(JSONIndent)
+       St:=JSONValue.ToJSON // JSONValue.Format(JSONIndent)
     else
        If oJSON.TryGetValue<string>(fieldname,St) Then
           ;
@@ -1664,7 +1669,6 @@ Begin
    End;
   Result:=P;
 End;
-
 
 Function IndexOfList( LB:       TStrings;
                       const StTarget: String;
@@ -1792,7 +1796,9 @@ function NetHTTPReq( pMethod: TRESTRequestMethod;
                      LHeader: TNetHeaders=Nil
                     ): IHTTPResponse; Overload;
 begin
-  result:=NetHTTPReq(pMethod,BaseURI, Path,JSON.Format(JSONIndent),LHeader);
+  result:=NetHTTPReq( pMethod,BaseURI, Path,
+                      JSON.ToJSON, //JSON.Format(JSONIndent),
+                      LHeader);
 end;
 
 procedure SendEmail( const aFromAddresses,
@@ -1851,9 +1857,15 @@ begin
     SMTP.Username:=Connection.Values['User']; // 'gjrivero@gmail.com';
     SMTP.Password:=Connection.Values['Password']; // 'I_d7492361.';
     SMTP.IOHandler:=SSLHandler;
+(*
+    0: utNoTLSSupport,
+    1: utUseImplicitTLS, // ssl iohandler req, allways tls
+    2: utUseRequireTLS, // ssl iohandler req, user command only accepted when in tls
+    3: utUseExplicitTLS // < user can choose to use tls
+*)
     SMTP.UseTLS := TIdUseTLS(Connection.Values['UseTLS'].ToInteger); // utUseExplicitTLS;
 
-    Email.From.Address := Connection.Values['FromAddress'];;
+    Email.From.Address := Connection.Values['FromAddress'];
     Email.From.Name:= Connection.Values['FromName'];
     Email.Subject := Connection.Values['Subject'];
     ImageParts:=Connection.Values['Images'].Split([';']);
