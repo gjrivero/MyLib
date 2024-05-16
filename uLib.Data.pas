@@ -315,10 +315,8 @@ Begin
     'INSERT INTO '+fileName+' ('+sFields+')'#13#10;
   if Not fldReturn.IsEmpty then
   sCmd:=sCmd+
-    '       OUTPUT inserted.id'#13#10+
-    '              ,'+fldReturn.QuotedString+#13#10+
-    '              ,inserted.'+fldReturn+#13#10+
-    '         INTO @temptable'#13#10;
+    '       OUTPUT inserted.id,'+fldReturn.QuotedString+',inserted.'+fldReturn+
+    ' INTO @temptable'#13#10;
   sCmd:=sCmd+
     '       VALUES ('+sValues+');';
   result:=sCmd;
@@ -730,7 +728,7 @@ begin
      end;
   end;
 {$IFDEF DEBUG}
-  //cCmd.SaveToFile('trans.txt');
+  cCmd.SaveToFile('trans.txt');
 {$ENDIF}
   FDM.Qry.SQL.Clear;
   FDM.Qry.SQL.Assign(cCmd);

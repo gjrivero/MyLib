@@ -56,40 +56,41 @@ Function  GoodReal(S: String; defDec: Integer=2): Double; Overload;
 Function  DivCero(A,B: Double): Double;
 function  LeftS(S: String; Len: Integer; Ch: Char=' '): String;
 
-Function  GetFloat(OJSON: TJSONObject; const fieldname: String): Double; Overload;
-Function  GetFloat(FT: TDataSet; const FieldName: String): Double; OverLoad;
+Function  GetFloat(OJSON: TJSONObject; const fieldname: String; Default: Double=0): Double; Overload;
+Function  GetFloat(const sJSON, fieldname: String; Default: Double=0): Double; Overload;
+Function  GetFloat(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Double; OverLoad;
 Function  GetFloat(const St: String; Index: Integer; CDiv: Char=ChDiv): Double; OverLoad;
-Function  GetFloat(const sJSON, fieldname: String): Double; Overload;
-Function  GetFloat(Item: IXMLNode): Double; Overload;
-Function  GetFloat(Item: IXMLNode; const AttribName: String): Double; Overload;
+Function  GetFloat(Item: IXMLNode; const AttribName: String; Default: Double=0): Double; Overload;
+Function  GetFloat(Item: IXMLNode; Default: Double=0): Double; Overload;
+Function  GetFloat(FT: TDataSet; const FieldName: String): Double; OverLoad;
 
-Function  GetInt(OJSON: TJSONObject; const fieldname: String): Integer; Overload;
-Function  GetInt(OJSON: TJSONObject; const fieldname: String; iDefault: Integer): Integer; Overload;
-Function  GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;
-Function  GetInt(const St: String; Index: Integer; CDiv: Char=ChDiv): Integer; Overload;
+Function  GetInt(OJSON: TJSONObject; const fieldname: String; Default: Integer=0): Integer; Overload;
+Function  GetInt(const sJSON, fieldname: String; Default: Integer=0): Integer; Overload;
 Function  GetInt(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Integer; OverLoad;
-Function  GetInt(const sJSON, fieldname: String): Integer; Overload;
-Function  GetInt(Item: IXMLNode; const AttribName: String): Integer; Overload;
-Function  GetInt(Item: IXMLNode): Integer; Overload;
+Function  GetInt(const St: String; Index: Integer; CDiv: Char=ChDiv): Integer; Overload;
+Function  GetInt(Item: IXMLNode; const AttribName: String; Default: Integer=0): Integer; Overload;
+Function  GetInt(Item: IXMLNode; Default: Integer=0): Integer; Overload;
+Function  GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;
 
-Function  GetStr(OJSON: TJSONObject; const FieldName: String): String; Overload;
-Function  GetStr(FT: TDataSet; const FieldName: String): String; Overload;
+Function  GetStr(OJSON: TJSONObject; const FieldName: String; Default: String=''): String; Overload;
+Function  GetStr(const sJSON, fieldname: String; Default: String=''): String; Overload;
+Function  GetStr(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): String; Overload;
 Function  GetStr(const St: String; Index: Integer; CDiv: String): String; Overload;
 Function  GetStr(const St: String; Index: Integer; CDiv: Char=ChDiv): String; Overload;
-Function  GetStr(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): String; Overload;
-Function  GetStr(const sJSON, fieldname: String): String; Overload;
 function  GetStr(Item: IXMLNode): String; Overload;
 Function  GetStr(Item: IXMLNode; const AttribName: String): String; Overload;
+Function  GetStr(FT: TDataSet; const FieldName: String): String; Overload;
 
-Function  GetDate(OJSON: TJSONObject; const fieldname: String): TDateTime; Overload;
+Function  GetDate(OJSON: TJSONObject; const fieldname: String; Default: TDateTime=0): TDateTime; Overload;
+Function  GetDate(const sJSON, fieldname: String; Default: TDateTime=0): TDateTime; Overload;
 Function  GetDate(FT: TDataSet; const FieldName: String): TDateTime; Overload;
 Function  GetDate(const St: String; Index: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
 Function  GetDate(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
-Function  GetDate(const sJSON, fieldname: String): TDateTime; Overload;
+Function  GetDate(Item: IXMLNode; const AttribName: String; Default: TDateTime=0): TDateTime; Overload;
+Function  GetDate(Item: IXMLNode; Default: TDateTime=0): TDateTime; Overload;
+
 function  GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
 function  GetBool(const sJSON: String; const FieldName: string): boolean; Overload;
-Function  GetDate(Item: IXMLNode; const AttribName: String): TDateTime; Overload;
-Function  GetDate(Item: IXMLNode): TDateTime; Overload;
 
 Procedure JSONRemove( var sJSON: String; const fields: array of string); overload;
 Procedure JSONRemove( var sJSON: String; const FieldName: String); overload;
@@ -227,6 +228,7 @@ implementation
 uses
     System.IOUtils
    ,System.Zlib
+   ,System.Math
    ,System.RegularExpressions
    ,System.DateUtils
    ,System.StrUtils
@@ -1390,9 +1392,11 @@ Begin
   Result:=FT.FieldByName(FieldName).AsExtended;
 End;
 
-Function GetFloat(OJSON: TJSONObject; const fieldname: String): Double; Overload;
+Function GetFloat(OJSON: TJSONObject; const fieldname: String; Default: Double=0): Double; Overload;
+var aValue: Double;
 begin
-  Result:=StrToReal(GetStr(OJSON,fieldName));
+  aValue:=StrToReal(GetStr(OJSON,fieldName));
+  Result:=ifThen( aValue=0, Default, aValue);
 end;
 
 Function GetFloat(const St: String; Index: Integer; CDiv: Char=ChDiv): Double; Overload;
@@ -1410,31 +1414,36 @@ Begin
   Result:=GetFloat(St,N,CDiv);
 End;
 
-Function GetFloat(const sJSON, fieldname: String): Double;
+Function GetFloat(const sJSON, fieldname: String; Default: Double=0): Double;
 var JSON: TJSONObject;
 begin
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
-       Result:=GetFloat(JSON,fieldName);
+       Result:=GetFloat(JSON,fieldName,Default);
        FreeAndNil(JSON);
      end
   else
      result:=0;
 end;
 
-Function GetFloat(Item: IXMLNode; const AttribName: String): Double; Overload;
-Begin
-  Result:=StrToReal(varToStr(Item.Attributes[AttribName]));
+Function GetFloat(Item: IXMLNode; const AttribName: String; Default: Double=0): Double; Overload;
+var aValue: Double;
+begin
+  aValue:=StrToReal(varToStr(Item.Attributes[AttribName]));
+  Result:=ifThen(aValue=0, Default, aValue);
 End;
 
-Function GetFloat(Item: IXMLNode): Double; Overload;
-Begin
-  Result:=StrToReal(varToStr(Item.NodeValue));
+Function GetFloat(Item: IXMLNode; Default: Double=0): Double; Overload;
+var aValue: Double;
+begin
+  aValue:=StrToReal(varToStr(Item.NodeValue));
+  Result:=ifThen(aValue=0, Default, aValue);
 End;
 
-Function GetInt(OJSON: TJSONObject; const fieldname: String): Integer; Overload;
+Function GetInt(OJSON: TJSONObject; const fieldname: String; Default: Integer=0): Integer; Overload;
 Var sValue: String;
+    aValue: Integer;
 begin
   sValue:=GetStr(OJSON,fieldName);
   if Not IsNumeric(sValue) then
@@ -1442,15 +1451,8 @@ begin
         sValue:='1'
      else
         sValue:='0';
-  Result:=StrToInteger(sValue);
-end;
-
-Function GetInt(OJSON: TJSONObject; const fieldname: String; iDefault: Integer): Integer; Overload;
-begin
-  if GetInt(OJSON,fieldname)=0 then
-     result:=iDefault
-  else
-     result:=GetInt(OJSON,fieldname);
+  aValue:=StrToInteger(sValue);
+  Result:=ifThen(aValue=0, Default, aValue);
 end;
 
 Function GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;
@@ -1473,31 +1475,37 @@ Begin
   Result:=GetInt(St,N,cDiv);
 End;
 
-Function GetInt(const sJSON, fieldname: String): Integer;
+Function GetInt(const sJSON, fieldname: String; Default: Integer=0): Integer;
 var JSON: TJSONObject;
 begin
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
-       Result:=GetInt(JSON,fieldName);
+       Result:=GetInt(JSON,fieldName,Default);
        FreeAndNil(JSON);
      end
   else
      result:=0;
 end;
 
-Function GetInt(Item: IXMLNode; const AttribName: String): Integer; Overload;
+Function GetInt(Item: IXMLNode; const AttribName: String; Default: Integer=0): Integer; Overload;
+var aValue: Integer;
 Begin
-  Result:=StrToInteger(varToStr(Item.Attributes[AttribName]));
+  aValue:=StrToInteger(varToStr(Item.Attributes[AttribName]));
+  Result:=ifThen(aValue=0,Default,aValue);
 End;
 
-Function GetInt(Item: IXMLNode): Integer; Overload;
+Function GetInt(Item: IXMLNode; Default: Integer=0): Integer; Overload;
+var aValue: Integer;
 Begin
-  Result:=StrToInteger(varToStr(Item.NodeValue));
+  aValue:=StrToInteger(varToStr(Item.NodeValue));
+  Result:=ifThen(aValue=0,Default,aValue);
 End;
 
-Function GetDate(OJSON: TJSONObject; const fieldname: String): TDateTime; Overload;
+Function GetDate(OJSON: TJSONObject; const fieldname: String; Default: TDateTime=0): TDateTime; Overload;
 Begin
+  if Default=0 then
+     Default:=Now();
   Result:=StrToDateTimeFmt(GetStr(OJSON,fieldName));
 End;
 
@@ -1525,9 +1533,11 @@ Begin
   Result:=GetDate(St,N,CDiv);
 End;
 
-Function GetDate(const sJSON, fieldname: String): TDateTime;
+Function GetDate(const sJSON, fieldname: String; Default: TDateTime=0): TDateTime;
 var JSON: TJSONObject;
 begin
+  if Default=0 then
+     Default:=Now();
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
@@ -1538,25 +1548,29 @@ begin
      result:=-1;
 end;
 
-Function GetDate(Item: IXMLNode; const AttribName: String): TDateTime; Overload;
+Function GetDate(Item: IXMLNode; const AttribName: String; Default: TDateTime=0): TDateTime; Overload;
 Var St: String;
 Begin
+  if Default=0 then
+     Default:=Now();
   St:=Trim(varToStrDef(Item.Attributes[AttribName],''));
   Result:=StrToDateTimeFmt(St);
 End;
 
-Function GetDate(Item: IXMLNode): TDateTime; Overload;
+Function GetDate(Item: IXMLNode; Default: TDateTime=0): TDateTime; Overload;
 Var St: String;
 Begin
+  if Default=0 then
+     Default:=Now();
   St:=Trim(varToStrDef(Item.NodeValue,''));
   Result:=StrToDateTimeFmt(St);
 End;
 
-Function GetStr(OJSON: TJSONObject; const fieldname: String): String;
+Function GetStr(OJSON: TJSONObject; const fieldname: String; Default: String=''): String;
 Var St: String;
     JSONValue: TJSONValue;
 begin
-  St:='';
+  St:=Default;
   try
     JSONValue:=oJSON.GetValue(FieldName);
     if (JSONValue is TJSONArray) or
@@ -1566,7 +1580,7 @@ begin
        If oJSON.TryGetValue<string>(fieldname,St) Then
           ;
   except
-    St:='';
+    St:=Default;
   end;
   Result:=St;
 end;
@@ -1614,7 +1628,7 @@ Begin
   Result:=GetStr(St,N,CDiv);
 End;
 
-Function  GetStr(const sJSON, fieldname: String): String;
+Function  GetStr(const sJSON, fieldname: String; Default: String=''): String;
 var JSON: TJSONObject;
 begin
   JSON:=CreateTJSONObject(sJSON);
@@ -1648,9 +1662,9 @@ begin
   result:=Copy(S+StringOfChar(Ch,Len),1,Len);
 end;
 
-function IndexOfList( LT:       TStrings;
-                      const     StTarget: String;
-                      Partial:  Boolean=false): Integer; overload;
+function IndexOfList( LT: TStrings;
+                      const StTarget: String;
+                      Partial: Boolean=false): Integer; overload;
 Var I,P: Integer;
     Ok:  Boolean;
 Begin
@@ -1670,11 +1684,11 @@ Begin
   Result:=P;
 End;
 
-Function IndexOfList( LB:       TStrings;
+Function IndexOfList( LB: TStrings;
                       const StTarget: String;
-                      Column:   Integer=1;
-                      Partial:  Boolean=false;
-                      CDiv:     Char=ChDiv): Integer;  overload;
+                      Column: Integer=1;
+                      Partial: Boolean=false;
+                      CDiv: Char=ChDiv): Integer;  overload;
 Var L,
     Index:    Integer;
     St,
@@ -1701,7 +1715,9 @@ Begin
   Result:=Index;
 End;
 
-Function GetStringRangeItem(LB: TStrings; Index, FromField, ToField: Integer; CDiv: Char=ChDiv): String; Overload;
+Function GetStringRangeItem( LB: TStrings;
+                             Index, FromField, ToField: Integer;
+                             CDiv: Char=ChDiv): String; Overload;
 Var St,S: String;
     I:    Integer;
 Begin
@@ -1744,6 +1760,7 @@ function NetHTTPReq( pMethod: TRESTRequestMethod;
 Var
     nClient: TNetHTTPClient;
     nReq: TNetHTTPRequest;
+    iResp: IHTTPResponse;
     sStream: TStringStream;
     sURL,sPath: String;
 begin
@@ -1772,12 +1789,15 @@ begin
   if Not sJSON.IsEmpty then
      sStream:= TStringStream.Create(sJSON,TEncoding.UTF8);
   Try
+    iResp:=Nil;
     case pMethod of
-     rmPUT:    Result:=nReq.Put(sURL,sStream,nil,LHeader);
-     rmPOST:   Result:=nReq.Post(sURL,sStream,nil,LHeader);
-     rmGET:    Result:=nReq.Get(sURL,nil,LHeader);
-     rmDELETE: Result:=nReq.Delete(sURL,nil,LHeader);
+     rmPUT:    iResp:=nReq.Put(sURL,sStream,nil,LHeader);
+     rmPOST:   iResp:=nReq.Post(sURL,sStream,nil,LHeader);
+     rmGET:    iResp:=nReq.Get(sURL,nil,LHeader);
+     rmDELETE: iResp:=nReq.Delete(sURL,nil,LHeader);
     end;
+    result:=iResp;
+    //sResp:=iResp.ContentAsString();
   except
     on E: ENetException do begin
       if not (E is ENetHTTPClientException) then
@@ -1868,6 +1888,8 @@ begin
     Email.From.Address := Connection.Values['FromAddress'];
     Email.From.Name:= Connection.Values['FromName'];
     Email.Subject := Connection.Values['Subject'];
+    Email.ContentType := 'multipart/related; type="text/html"';
+
     ImageParts:=Connection.Values['Images'].Split([';']);
     for I := 0 to Recipients.Count-1 do
      begin
@@ -1890,6 +1912,7 @@ begin
          for I := Low(ImageParts) to High(ImageParts) do
            begin
              var sCID:=ImageParts[i];
+
              Delete(sCID,1,Length(ExtractFilePath(sCID)));
              HtmlFiles.Add(ImageParts[i],sCID);
            end;

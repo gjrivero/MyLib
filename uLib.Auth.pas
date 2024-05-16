@@ -237,6 +237,18 @@ begin
       aValue:= GetStr(sHeader,2,':');
       AHeaders.AddPair(aName,aValue );
     end;
+(*
+  if not FileExists('Headers.txt') then
+     AHeaders.SaveToFile('Headers.txt')
+  else
+     begin
+       var fText: TextFile;
+       AssignFile(fText,'Headers.txt');
+       Append(FText);
+       Writeln(FText,AHeaders.Text);
+       CloseFile(FText);
+     end;
+*)
   sToken:='';
   JSONBody:='';
   if (lMethod='POST') then
@@ -246,8 +258,9 @@ begin
           APassword.IsEmpty and
           ContainsText(JSONBody,'user') then
           SetJSON( Credentials,
-                   [SS_USER,SS_PASSWORD],
-                   [GetStr(JSONBody,'user'),GetStr(JSONBody,'password')]);
+                   [ SS_USER, SS_PASSWORD],
+                   [ GetStr(JSONBody,'user'),
+                     GetStr(JSONBody,'password')]);
      end;
   AUser:=GetStr(Credentials,SS_USER);
   APassword:=GetStr(Credentials,SS_PASSWORD);
