@@ -132,6 +132,7 @@ implementation
 uses
     System.Variants,
     System.StrUtils,
+    System.SysUtils,
     System.IOUtils,
     System.Math,
     System.Net.URLClient,
@@ -624,6 +625,7 @@ function TFDMController.execTrans( cSQL, sDecl: TStringList;
                          pParams: TFDParams): TJSONObject;
 var
    cCmd: TStringList;
+   I: Integer;
 begin
   cCmd:=TStringList.Create;
   SetHeader(cCmd,true);
@@ -646,7 +648,13 @@ begin
        cCmd.Add('   @ErrorNumber INT,');
        cCmd.Add('   @ErrorLine INT'+IfThen(sDecl=Nil,';',','));
        if sDecl<>Nil then
-          cCmd.AddStrings(sDecl);
+          begin
+            var sText:=sDcl.Text;
+
+            if (AnsiLastChar(sText)<>';') then
+               sText:=sText+';';
+            cCmd.AddStrings(sText);
+          end;
        cCmd.Add('BEGIN TRANSACTION;');
        cCmd.Add('BEGIN TRY');
      end;
@@ -669,7 +677,9 @@ begin
      end;
   end;
   //--------------------------------
-  cCmd.AddStrings(cSQL);
+  //cCmd.AddStrings(cSQL);
+  for I := 0 to cSQL.Count-1 do
+   cCmd.Add('  '+TrimRight(cSQL[i]));
   //--------------------------------
   Case RDBMSKind of
    TFDRDBMSKinds.SQLite:
