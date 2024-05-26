@@ -50,49 +50,53 @@ function GetData( const sTblName: String;
                   sOrder: string=''): TJSONArray; overload;
 
 function AddData( const dbTableName: String;
-                        Context: TJSONValue): TJSONObject; Overload;
+                        Context: TJSONValue): TJSONValue; Overload;
 function AddData( const dbTableName,
-                        Context: String): TJSONObject; Overload;
+                        Context: String): TJSONValue; Overload;
 function AddData( const dbTableName: string;
                   const fldNames: Array of String;
-                  const fldValues: Array of const): TJSONObject; Overload;
+                  const fldValues: Array of const): TJSONValue; Overload;
 
 function UpdData( const dbTableName: String;
                         Context: TJSONValue;
-                        Condition: String=''): TJSONObject; Overload;
+                        Condition: String=''): TJSONValue; Overload;
 function UpdData( const dbTableName,
                         Context: String;
-                        Condition: String=''): TJSONObject; Overload;
+                        Condition: String=''): TJSONValue; Overload;
 function UpdData( const dbTableName: String;
                   const fldNames: Array of String;
                   const fldValues: Array of const;
-                        Condition: String=''): TJSONObject; Overload;
+                        Condition: String=''): TJSONValue; Overload;
 
 function DelData( const dbTableName, Condition: String): TJSONObject;
 
-function ExecCmd( const sCommands: String; pParams: TFDParams=Nil; aCommit: Boolean=true): TJSONObject; Overload;
-function ExecCmd( sCommands: TStrings; pParams: TFDParams=Nil; aCommit: Boolean=true): TJSONObject; Overload;
+function ExecCmd( const sCommands: String; pParams: TFDParams=Nil; aCommit: Boolean=true): Integer; Overload;
+function ExecCmd( sCommands: TStrings; pParams: TFDParams=Nil; aCommit: Boolean=true): Integer; Overload;
 function ExecCmd( const sCommands: String;
                   const fldNames: Array of String;
                   const fldValues: Array of const;
-                  aCommit: Boolean=true): TJSONObject; Overload;
+                  aCommit: Boolean=true): Integer; Overload;
 function ExecCmd( sCommands: TStrings;
                   const fldNames: Array of String;
                   const fldValues: Array of const;
-                  aCommit: Boolean=true): TJSONObject; Overload;
+                  aCommit: Boolean=true): Integer; Overload;
 
 function ExecTransact( cSQL: TStringList;
                        sDecl: TStringList=nil;
                        sFields: String='';
-                       pParams: TFDParams=nil): TJSONObject; Overload;
+                       pParams: TFDParams=nil): TJSONValue; Overload;
 function ExecTransact( cSQL: String;
                        sDecl: String='';
                        sFields: String='';
-                       pParams: TFDParams=nil): TJSONObject; Overload;
+                       pParams: TFDParams=nil): TJSONValue; Overload;
 
 function FieldsString( const fields: array of String; alias: String=''  ): String;
 function GetDriverID(CnxDriver: String): TFDRDBMSKind;
 function DatabaseExists( const nameDB: String): boolean;
+{
+function SetFDParams( const fldNames: Array Of String;
+                      const fldValues: Array Of Variant): TFDParams; overload;
+}
 
 Function sqlInsert( const filename: String;
                           aJSON: TJSONObject;
@@ -119,7 +123,6 @@ Function sqlInsertOrUpdate( const filename, aJSON: string;
 
 function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
-
 function SQLiteSetPassword( Const sNewPass, sOldPass: String): Integer;
 function SQLiteSetCrypt(const sPassword: string; encrypt: Boolean): Integer;
 function SQLiteGetCrypt( const sPassword: String; var sCrypted: String): Integer; // SqLite
@@ -167,11 +170,10 @@ type
     function execTrans( cSQL, sDecl: TStringList;
                         sFields: String;
                         pParams: TFDParams): TJSONValue;
-    procedure SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
-
     function cmdSetPass( const sNewPass, sOldPass: String): Integer;
     function cmdSetCrypt( const sPassword: string; encrypt: Boolean): Integer;
     function cmdGetCrypt( const sPassword: String; var sCrypted: String): Integer; // SqLite
+    procedure SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
   public
     { Public declarations }
     //HeadEnabled: boolean;
@@ -194,10 +196,11 @@ begin
       2: T:=IfThen(CnxDriver.ToUpper='MSSQL',TFDRDBMSKinds.MSSQL,0);
       3: T:=IfThen(CnxDriver.ToUpper='MYSQL',TFDRDBMSKinds.MySQL,0);
       4: T:=IfThen(CnxDriver.ToUpper='PG',TFDRDBMSKinds.PostgreSQL,0);
+      5: T:=IfThen(CnxDriver.ToUpper='SQLITE',TFDRDBMSKinds.SQLite,0);
      end;
      Inc(i);
-  until (I>4) Or (T<>TFDRDBMSKinds.Unknown);
-  result:=T;
+  until (I>7) Or (T<>TFDRDBMSKinds.Unknown);
+  result:=t;
 end;
 
 function sqlWhere( const fldNames:  Array of String;
@@ -313,7 +316,7 @@ Begin
   if Not fldReturn.IsEmpty then
   sCmd:=sCmd+
     '       OUTPUT inserted.id,'+fldReturn.QuotedString+',inserted.'+fldReturn+
-    ' INTO @TempTable'#13#10;
+    ' INTO @temptable'#13#10;
   sCmd:=sCmd+
     '       VALUES ('+sValues+');';
   result:=sCmd;
@@ -370,6 +373,24 @@ Function sqlInsertOrUpdate( const filename, aJSON: string;
 begin
   result:=sqlInsertOrUpdate( filename, CreateTJSONObject(aJSON),whereStr,fldReturn);
 end;
+
+(*
+function SetFDParams( const fldNames: Array Of String;
+                      const fldValues: Array Of Variant): TFDParams; overload;
+Var
+    I:  Integer;
+    fName: String;
+Begin
+  result:=Nil;
+  for I:=Low(fldNames) To High(fldNames) Do
+   Begin
+     if result=nil then
+        TFDParams.Create;
+     fName:=fldNames[I].ToLower;
+     result.Add(fname,fldValues[I]);
+   End;
+end;
+*)
 
 function SetFDParams( const fldNames:  Array of String;
                       const fldValues: Array of Const): TFDParams; overload;
@@ -458,6 +479,10 @@ begin
     DMC.Free;
   end;
 end;
+
+//-------------------------------------------------------
+//
+//-------------------------------------------------------
 
 constructor TFDMController.Create(AdmMain: TdmMain);
 begin
@@ -602,21 +627,27 @@ var
    I: Integer;
    OkArray: Boolean;
 begin
-  OkArray:=False;
-  If not ContainsText(sFields,'SELECT ') then
-     OkArray:=ContainsText(sFields,' FROM ');
+  OkArray:=ContainsText(sFields,' FROM ');
   cCmd:=TStringList.Create;
   SetHeader(cCmd,true);
   Case RDBMSKind of
+   TFDRDBMSKinds.SQLite:
+     begin
+       cCmd.Add('DECLARE ');
+       if sDecl<>Nil then
+          cCmd.AddStrings(sDecl);
+       cCmd.Add('  '+IfThen(sDecl<>Nil,',',' ')+'@Error INT=0');
+       cCmd.Add('BEGIN TRANSACTION;');
+     end;
    TFDRDBMSKinds.MSSQL:
      begin
        cCmd.Add('SET TRANSACTION ISOLATION LEVEL READ COMMITTED;');
        cCmd.Add('DECLARE ');
-       cCmd.Add('   @ErrMsg        NVARCHAR(4000)');
-       cCmd.Add('  ,@ErrorSeverity INT');
-       cCmd.Add('  ,@ErrorState    INT');
-       cCmd.Add('  ,@ErrorNumber   INT');
-       cCmd.Add('  ,@ErrorLine     INT'+IfThen(sDecl=Nil,';',''));
+       cCmd.Add('   @ErrMsg nvarchar(4000),');
+       cCmd.Add('   @ErrorSeverity INT,');
+       cCmd.Add('   @ErrorState INT,');
+       cCmd.Add('   @ErrorNumber INT,');
+       cCmd.Add('   @ErrorLine INT'+IfThen(sDecl=Nil,';',','));
        if sDecl<>Nil then
           begin
             var sText:=sDecl.Text;
@@ -652,10 +683,22 @@ begin
    cCmd.Add('  '+TrimRight(cSQL[i]));
   //--------------------------------
   Case RDBMSKind of
+   TFDRDBMSKinds.SQLite:
+     begin
+       cCmd.Add('  IF @ERROR>0');
+       cCmd.Add('  BEGIN');
+       cCmd.Add('    ROLLBACK;');
+       cCmd.Add('    SELECT @ErrMsg=''ERROR [''+CAST(@ERROR AS VARCHAR(5))+''] IN TRASACTION'';');
+       cCmd.Add('    SELECT @ERROR error, @ErrMsg errmsg;');
+       cCmd.Add('    RAISERROR(@ErrMsg, @ERROR,1);');
+       cCmd.Add('  END;');
+       cCmd.Add('COMMIT TRANSACTION;');
+       cCmd.Add('SELECT @ERROR error'+ifThen(sFields<>'',', '+sFields,'')+';');
+     end;
    TFDRDBMSKinds.MSSQL:
      begin
        cCmd.Add('  COMMIT TRANSACTION;');
-       cCmd.Add('  '+ifThen(sFields<>'','SELECT '+sFields,'SELECT 0 error;'));
+       cCmd.Add('  SELECT 0 error'+ifThen(sFields<>'',', '+sFields,'')+';');
        cCmd.Add('END TRY');
        cCmd.Add('BEGIN CATCH');
        cCmd.Add('  IF (@@TRANCOUNT>0)');
@@ -700,6 +743,7 @@ begin
 {$ENDIF}
   FDM.Qry.SQL.Clear;
   FDM.Qry.SQL.Assign(cCmd);
+
   if pParams<>Nil then
      begin
        FDM.Qry.Params:=pParams;
@@ -739,13 +783,24 @@ function TFDMController.cmdAdd( const dbTableName, Context: String): TJSONValue;
     sIns:=
       'INSERT INTO '+DBTABLE+' ('+pNameFlds+')'#13#10;
     Case RDBMSKind Of
+     TFDRDBMSKinds.SQLite:
+       begin
+         sIns:=sIns+
+            '       OUTPUT inserted.id'+
+            ', '+GetStr(pNameFlds,1,',').QuotedString+
+            ', '+GetStr(pValFlds,1,',')+#13#10+
+            '         INTO @temptable'#13#10+
+            '       VALUES ('+pValFlds+')';
+
+         iSQL.Add(sIns+';');
+       end;
      TFDRDBMSKinds.MSSQL:
        begin
          sIns:=sIns+
             '       OUTPUT inserted.id'+
             ', '+GetStr(pNameFlds,1,',').QuotedString+
             ', '+GetStr(pValFlds,1,',')+#13#10+
-            '         INTO @TempTable'#13#10+
+            '         INTO @temptable'#13#10+
             '       VALUES ('+pValFlds+')';
 
          iSQL.Add(sIns+';');
@@ -780,8 +835,7 @@ function TFDMController.cmdAdd( const dbTableName, Context: String): TJSONValue;
   end;
 
 Var
-  sCmd,
-  Dcl: TStringList;
+  sCmd: TStringList;
   AJSON: TJSONArray;
   sFields,
   sValues,
@@ -791,18 +845,29 @@ Var
   I: Integer;
 begin
   sCmd:=TStringList.create;
-  Dcl:=TStringList.create;
+  //sDcl:=TStringList.create;
   Case RDBMSKind Of
+    TFDRDBMSKinds.SQLite:
+        begin
+          sCmd.Add('DECLARE ');
+          sCmd.Add('  @TempTable TABLE (');
+          sCmd.Add('    id INT,');
+          sCmd.Add('    field VARCHAR(30),');
+          sCmd.Add('    value NVARCHAR(MAX)');
+          sCmd.Add('  );');
+          fldsReturn:=
+                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedrows';
+        end;
     TFDRDBMSKinds.MSSQL:
         begin
-          Dcl.Add(';');
-          Dcl.Add('DECLARE ');
-          Dcl.Add('  @TempTable TABLE (');
-          Dcl.Add('    id INT,');
-          Dcl.Add('    field VARCHAR(30),');
-          Dcl.Add('    value NVARCHAR(MAX)');
-          Dcl.Add('  )');
-          fldsReturn:='id, field, value FROM @TempTable';
+          sCmd.Add('DECLARE ');
+          sCmd.Add('  @TempTable TABLE (');
+          sCmd.Add('    id INT,');
+          sCmd.Add('    field VARCHAR(30),');
+          sCmd.Add('    value NVARCHAR(MAX)');
+          sCmd.Add('  );');
+          fldsReturn:=
+                '(SELECT id, field, value FROM @TempTable FOR JSON AUTO) insertedrows';
         end;
   end;
   try
@@ -821,10 +886,10 @@ begin
          GetFieldsvalues(Context,sFields,sValues,sSetVal,sCondition,false);
          InsTable(sCmd,dbTableName,sFields,sValues,False);
        end;
-    result:= execTrans(sCmd,Dcl,fldsReturn,nil);
+    result:= execTrans(sCmd,Nil,fldsReturn,nil);
   finally
     sCmd.Destroy;
-    Dcl.Destroy;
+    //sDcl.Destroy;
   end;
 End;
 
@@ -916,6 +981,61 @@ begin
   end;
   aHeader.Destroy;
   result:=FDM.Qry;
+end;
+
+function TFDMController.cmdSetPass( Const sNewPass, sOldPass: String): Integer;
+begin
+  try
+    FDM.SQLiteSecurity.Password :=
+        FDM.Cnx.Params.Values['Encrypt']+':'+sOldPass;
+    FDM.SQLiteSecurity.ToPassword :=
+        FDM.Cnx.Params.Values['Encrypt']+':'+sNewPass;
+    FDM.SQLiteSecurity.ChangePassword;
+    result:=DB_SUCCESSFUL;
+  except
+    result:=DB_PASSWORD_ERROR;
+  end;
+end;
+
+function TFDMController.cmdSetCrypt(const sPassword: string; encrypt: Boolean): Integer;
+begin
+  With FDM Do
+   begin
+     Cnx.Connected:=false;
+     try
+       SQLiteSecurity.Database:= Cnx.Params.Database;
+       //SQLITE_CRYPT_ALGO+':' +SQLITE_PASSWORD;
+       SQLiteSecurity.Password:= Cnx.Params.Values['Encrypt']+':'+
+                                      sPassword;
+       if encrypt then
+          begin
+            SQLiteSecurity.SetPassword;
+          end
+       else
+          SQLiteSecurity.RemovePassword;
+       result:=DB_SUCCESSFUL;
+     except
+       result:=DB_PASSWORD_ERROR;
+     end;
+   end;
+end;
+
+function TFDMController.cmdGetCrypt( const sPassword: String; var sCrypted: String): Integer; // SqLite
+begin
+  With FDM Do
+   begin
+     Cnx.Connected:=false;
+     try
+       SQLiteSecurity.Database:=
+           Cnx.Params.Database;
+       SQLiteSecurity.Password:=
+           Cnx.Params.Values['Encrypt']+':'+sPassword;
+       sCrypted := SQLiteSecurity.CheckEncryption;
+       result:=DB_SUCCESSFUL;
+     except
+       result:=DB_CONNECTION_ERROR;
+     end;
+   end;
 end;
 
 function setQueryPaged(Const dbTable, sFields, sWhere: String): String;
@@ -1085,68 +1205,6 @@ end;
 //
 //-------------------------------------------------------
 
-{ TFDSQLiteService }
-
-function TFDMController.cmdSetPass( Const sNewPass, sOldPass: String): Integer;
-begin
-  try
-    FDM.SQLiteSecurity.Password :=
-        FDM.Cnx.Params.Values['Encrypt']+':'+sOldPass;
-    FDM.SQLiteSecurity.ToPassword :=
-        FDM.Cnx.Params.Values['Encrypt']+':'+sNewPass;
-    FDM.SQLiteSecurity.ChangePassword;
-    result:=DB_SUCCESSFUL;
-  except
-    result:=DB_PASSWORD_ERROR;
-  end;
-end;
-
-function TFDMController.cmdSetCrypt(const sPassword: string; encrypt: Boolean): Integer;
-begin
-  With FDM Do
-   begin
-     Cnx.Connected:=false;
-     try
-       SQLiteSecurity.Database:= Cnx.Params.Database;
-       //SQLITE_CRYPT_ALGO+':' +SQLITE_PASSWORD;
-       SQLiteSecurity.Password:= Cnx.Params.Values['Encrypt']+':'+
-                                      sPassword;
-       if encrypt then
-          begin
-            SQLiteSecurity.SetPassword;
-          end
-       else
-          SQLiteSecurity.RemovePassword;
-       result:=DB_SUCCESSFUL;
-     except
-       result:=DB_PASSWORD_ERROR;
-     end;
-   end;
-end;
-
-function TFDMController.cmdGetCrypt( const sPassword: String; var sCrypted: String): Integer; // SqLite
-begin
-  With FDM Do
-   begin
-     Cnx.Connected:=false;
-     try
-       SQLiteSecurity.Database:=
-           Cnx.Params.Database;
-       SQLiteSecurity.Password:=
-           Cnx.Params.Values['Encrypt']+':'+sPassword;
-       sCrypted := SQLiteSecurity.CheckEncryption;
-       result:=DB_SUCCESSFUL;
-     except
-       result:=DB_CONNECTION_ERROR;
-     end;
-   end;
-end;
-
-
-//-------------------------------------------------------
-//
-//-------------------------------------------------------
-
 function GetDataSet( const sQuery: String;
                            pParams: TFDParams=nil): TDataSet; overload;
 var
@@ -1214,27 +1272,25 @@ begin
 end;
 
 function AddData( Const dbTableName: string;
-                        Context: TJSONValue ): TJSONObject; Overload;
+                        Context: TJSONValue ): TJSONValue; Overload;
 Var
    DMC: TFDMController;
 begin
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdAdd(dbTableName,Context.ToString));
+    Result:=DMC.cmdAdd(dbTableName,Context.ToString);
   finally
     DMC.Destroy;
   end;
 end;
 
-function AddData( Const dbTableName, Context: String): TJSONObject; Overload;
+function AddData( Const dbTableName, Context: String): TJSONValue; Overload;
 Var
    DMC: TFDMController;
 begin
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdAdd(dbTableName,Context));
+    Result:=DMC.cmdAdd(dbTableName,Context);
   finally
     DMC.Destroy;
   end;
@@ -1242,17 +1298,16 @@ end;
 
 function AddData( Const dbTableName: string;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const ): TJSONObject; Overload;
+                  const fldValues: Array of const ): TJSONValue; Overload;
 var
    Context: String;
    DMC: TFDMController;
 begin
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   Context:='';
   SetJSON(Context,fldNames,fldValues);
   try
-    Result.AddPair('result',DMC.cmdAdd(dbTableName,Context));
+    Result:=DMC.cmdAdd(dbTableName,Context);
   finally
     DMC.Destroy;
   end;
@@ -1260,32 +1315,30 @@ end;
 
 function UpdData( const dbTableName: String;
                         Context: TJSONValue;
-                        Condition: String=''): TJSONObject; Overload;
+                        Condition: String=''): TJSONValue; Overload;
 Var
    DMC: TFDMController;
    sWhere: String;
 begin
   sWhere:=Condition;
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdUpd(dbTableName,Context.ToString,sWhere));
+    Result:=DMC.cmdUpd(dbTableName,Context.ToString,sWhere);
   finally
     DMC.Destroy;
   end;
 End;
 
 function UpdData( const dbTableName, Context: String;
-                        Condition: String=''): TJSONObject; Overload;
+                        Condition: String=''): TJSONValue; Overload;
 Var
    DMC: TFDMController;
    sWhere: String;
 begin
   sWhere:=Condition;
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdUpd(dbTableName,Context,sWhere));
+    Result:=DMC.cmdUpd(dbTableName,Context,sWhere);
   finally
     DMC.Destroy;
   end;
@@ -1294,7 +1347,7 @@ End;
 function UpdData( const dbTableName: String;
                   const fldNames:  Array of String;
                   const fldValues: Array of const;
-                        Condition: String=''): TJSONObject; Overload;
+                        Condition: String=''): TJSONValue; Overload;
 var
    Context: string;
    DMC: TFDMController;
@@ -1302,11 +1355,10 @@ var
 begin
   sWhere:=Condition;
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   Context:='{}';
   SetJSON(Context,fldNames,fldValues);
   try
-    Result.AddPair('result',DMC.cmdUpd(dbTableName,Context,sWhere));
+    Result:=DMC.cmdUpd(dbTableName,Context,sWhere);
   finally
     DMC.Destroy;
   end;
@@ -1319,9 +1371,8 @@ Var
 begin
   sWhere:=Condition;
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdDel(dbTableName,sWhere));
+    Result:= DMC.cmdDel(dbTableName,sWhere);
   finally
     DMC.Destroy;
   end;
@@ -1330,14 +1381,13 @@ end;
 function ExecTransact( cSQL: String;
                        sDecl: String='';
                        sFields: String='';
-                       pParams: TFDParams=nil): TJSONObject;
+                       pParams: TFDParams=nil): TJSONValue;
 Var
    DMC: TFDMController;
    Cmd,
    Dcl: TStringList;
 begin
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   Cmd:=TStringList.Create;
   Cmd.Text:=cSQL;
   Dcl:=Nil;
@@ -1347,7 +1397,7 @@ begin
        Dcl.Text:=sDecl;
      end;
   try
-    result.AddPair('result',DMC.execTrans(Cmd, Dcl, sFields, pParams));
+    result:= DMC.execTrans(Cmd, Dcl, sFields, pParams);
   finally
     DMC.Destroy;
     Cmd.Destroy;
@@ -1359,14 +1409,13 @@ end;
 function ExecTransact( cSQL: TStringList;
                        sDecl: TStringList=nil;
                        sFields: String='';
-                       pParams: TFDParams=nil): TJSONObject;
+                       pParams: TFDParams=nil): TJSONValue;
 Var
    DMC: TFDMController;
 begin
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   try
-    result.AddPair('result',DMC.execTrans(cSQL, sDecl, sFields, pParams));
+    result:= DMC.execTrans(cSQL, sDecl, sFields, pParams);
   finally
     DMC.Destroy;
   end;
@@ -1374,16 +1423,15 @@ end;
 
 function ExecCmd( const sCommands: String;
                         pParams: TFDParams=Nil;
-                        aCommit: Boolean=true): TJSONObject; Overload;
+                        aCommit: Boolean=true): Integer; Overload;
 Var
    DMC: TFDMController;
 begin
   if sCommands='' then
-     Exit(Nil);
+     Exit(0);
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   try
-    result.AddPair('result',DMC.cmdExecute(sCommands,pParams,aCommit));
+    Result:=DMC.cmdExecute(sCommands,pParams,aCommit);
   finally
     DMC.Destroy;
   end;
@@ -1391,7 +1439,7 @@ end;
 
 function ExecCmd( sCommands: TStrings;
                   pParams: TFDParams=Nil;
-                  aCommit: Boolean=true): TJSONObject; Overload;
+                  aCommit: Boolean=true): Integer; Overload;
 begin
   result:=ExecCmd( sCommands.text,pParams,aCommit);
 end;
@@ -1399,18 +1447,17 @@ end;
 function ExecCmd( const sCommands: String;
                   const fldNames:  Array of String;
                   const fldValues: Array of const;
-                        aCommit: Boolean=true): TJSONObject; overload;
-var
-   pParams: TFDParams;
+                        aCommit: Boolean=true): Integer; overload;
+var pParams: TFDParams;
+Var
    DMC: TFDMController;
 begin
   if sCommands='' then
-     Exit(Nil);
+     Exit(0);
   DMC:=TFDMController.Create(dmMain);
   pParams:=setFDParams(fldNames,fldValues);
-  Result:=TJSONObject.Create;
-  try
-    result.AddPair('result',DMC.cmdExecute(sCommands,pParams,aCommit));
+  Try
+    Result:=DMC.cmdExecute(sCommands,pParams,aCommit);
   finally
     pParams.Destroy;
     DMC.Destroy;
@@ -1420,10 +1467,11 @@ end;
 function ExecCmd( sCommands: TStrings;
                    const fldNames:  Array of String;
                    const fldValues: Array of const;
-                   aCommit: Boolean=true): TJSONObject; Overload;
+                   aCommit: Boolean=true): Integer; Overload;
 begin
   result:= ExecCmd( sCommands.Text,fldNames,fldValues,aCommit);
 end;
+
 
 function DatabaseExists(const nameDB: String): boolean;
 Var
@@ -1451,6 +1499,7 @@ begin
      result:=GetInt(JSON,'db_exists')>0;
   JSON.Destroy;
 end;
+
 
 { TFDSQLiteService }
 
@@ -1495,4 +1544,5 @@ initialization
 finalization
 
 end.
+
 

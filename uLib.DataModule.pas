@@ -46,7 +46,6 @@ type
     PgDriver: TFDPhysPgDriverLink;
     MSSQLDriver: TFDPhysMSSQLDriverLink;
 {$ENDIF}
-    //function ParamsToJSONObject(params: TFDParams): TJSONObject;
   public
     { Public declarations }
   end;
@@ -56,13 +55,13 @@ var
   ADriverVendor: TStringList;
   ADatabaseServer: TStringList;
 
+
 implementation
 
 {$R *.dfm}
 
 uses
    uLib.Common;
-
 
 procedure TdmMain.CnxBeforeConnect(Sender: TObject);
 begin
@@ -110,9 +109,6 @@ begin
 {$ENDIF}
 end;
 
-//-------------------------------------------------------
-//
-//-------------------------------------------------------
 
 initialization
   ADriverVendor:=TStringList.Create;
