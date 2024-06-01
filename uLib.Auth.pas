@@ -190,6 +190,7 @@ begin
        SetValue(Session,SS_DEVELOPID, GetStr(aJSON,SS_DEVELOPID));
        SetValue(Session,SS_APPID, GetStr(aJSON,SS_APPID));
        SetValue(Session,SS_APPNAME, GetStr(aJSON,SS_APPNAME));
+       SetValue(Session,SS_CUSTID, GetStr(aJSON,SS_CUSTID)); // La tabla debe tener ID
        SetValue(Session,SS_LOGINID, GetStr(aJSON,SS_LOGINID)); // La tabla debe tener ID
        SetValue(Session,SS_FIRSTNAME, GetStr(aJSON,SS_FIRSTNAME));
        SetValue(Session,SS_LASTNAME, GetStr(aJSON,SS_LASTNAME));
@@ -220,10 +221,11 @@ begin
   lMethod:=Request.Method;
   if ContainsText(Host.ToLower,'api') then
      // '/v1/otp/account/2'
-     MethodIndex:=4
+     MethodIndex:=3
   else
      // '/api/v1/otp/account/2'
-     MethodIndex:=5;
+     MethodIndex:=4;
+  MethodIndex:=MethodIndex+ord(Pos('/v1',Base_Url)>0);
   if ContainsText(Base_Url.ToLower,METHOD_PING) then
      Method:=METHOD_PING
   else
@@ -237,18 +239,6 @@ begin
       aValue:= GetStr(sHeader,2,':');
       AHeaders.AddPair(aName,aValue );
     end;
-(*
-  if not FileExists('Headers.txt') then
-     AHeaders.SaveToFile('Headers.txt')
-  else
-     begin
-       var fText: TextFile;
-       AssignFile(fText,'Headers.txt');
-       Append(FText);
-       Writeln(FText,AHeaders.Text);
-       CloseFile(FText);
-     end;
-*)
   sToken:='';
   JSONBody:='';
   if (lMethod='POST') then
@@ -267,8 +257,7 @@ begin
   TokenParam:=false;
   if AUser.IsEmpty And APassword.IsEmpty then
      begin
-       if sToken.IsEmpty and
-          (Pos('authtoken',aQuery.ToLower)>0) then
+       if sToken.IsEmpty and (Pos('authtoken',aQuery.ToLower)>0) then
           begin
             sToken:=Copy(aQuery,Pos('authtoken',aQuery.ToLower),Length(aQuery));
             Var p:=Pos('&',sToken);
@@ -277,7 +266,7 @@ begin
             sToken:=Copy(sToken,1,P);
             sToken:=GetStr(sToken,2,'=');
            end;
-       if Not sToken.IsEmpty and (lMethod='GET') then
+       if Not sToken.IsEmpty {and (lMethod='GET')} then
           begin
             sToken:=TNetEncoding.Base64.Decode(sToken);
             AUser:=GetStr(sToken,1,':');

@@ -157,6 +157,7 @@ begin
   for I := 0 to ADataSet.FieldCount - 1 do
   begin
     key := ADataSet.Fields[I].FieldName.ToLower;
+
     if ADataSet.Fields[I].IsNull then
     begin
       AJSONObject.AddPair(key,TJSONNull.Create);
@@ -173,9 +174,13 @@ begin
       TFieldType.ftSingle,
       TFieldType.ftFloat: AJSONObject.AddPair(key,TJSONNumber.Create(ADataSet.Fields[I].AsFloat));
       ftWideString, ftMemo, ftWideMemo:
-        AJSONObject.AddPair(key,TJSONString.Create(ADataSet.Fields[I].AsWideString));
+        begin
+          AJSONObject.AddPair(key,TJSONString.Create(ADataSet.Fields[I].AsWideString));
+        end;
       ftString:
-        AJSONObject.AddPair(key,TJSONString.Create(ADataSet.Fields[I].AsString));
+        begin
+          AJSONObject.AddPair(key,TJSONString.Create(ADataSet.Fields[I].AsString));
+        end;
       TFieldType.ftDate,
       TFieldType.ftDateTime:
         AJSONObject.AddPair(key,TJSONString.Create(

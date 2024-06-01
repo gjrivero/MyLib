@@ -590,7 +590,7 @@ var
 begin
   TS:=TStringList.Create;
   TS.Text:=sCmd;
-  cmdExecute(TS,pParams,aCommit);
+  result:=cmdExecute(TS,pParams,aCommit);
   TS.Destroy;
 end;
 
@@ -655,7 +655,10 @@ begin
    TFDRDBMSKinds.MSSQL:
      begin
        cCmd.Add('  COMMIT TRANSACTION;');
-       cCmd.Add('  '+ifThen(sFields<>'','SELECT '+sFields,'SELECT 0 error;'));
+       if OkArray then
+          cCmd.Add('  '+sFields)
+       else
+          cCmd.Add('  SELECT 0 error'+ifThen(sFields<>'',', '+sFields,';'));
        cCmd.Add('END TRY');
        cCmd.Add('BEGIN CATCH');
        cCmd.Add('  IF (@@TRANCOUNT>0)');
@@ -1221,7 +1224,7 @@ begin
   DMC:=TFDMController.Create(dmMain);
   Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdAdd(dbTableName,Context.ToString));
+    Result:=DMC.cmdAdd(dbTableName,Context.ToString) As TJSONObject;
   finally
     DMC.Destroy;
   end;
@@ -1234,7 +1237,7 @@ begin
   DMC:=TFDMController.Create(dmMain);
   Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdAdd(dbTableName,Context));
+    Result:=DMC.cmdAdd(dbTableName,Context) As TJSONObject;;
   finally
     DMC.Destroy;
   end;
@@ -1252,7 +1255,7 @@ begin
   Context:='';
   SetJSON(Context,fldNames,fldValues);
   try
-    Result.AddPair('result',DMC.cmdAdd(dbTableName,Context));
+    Result:=DMC.cmdAdd(dbTableName,Context) As TJSONObject;
   finally
     DMC.Destroy;
   end;
@@ -1269,7 +1272,7 @@ begin
   DMC:=TFDMController.Create(dmMain);
   Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdUpd(dbTableName,Context.ToString,sWhere));
+    Result:=DMC.cmdUpd(dbTableName,Context.ToString,sWhere) As TJSONObject;
   finally
     DMC.Destroy;
   end;
@@ -1285,7 +1288,7 @@ begin
   DMC:=TFDMController.Create(dmMain);
   Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdUpd(dbTableName,Context,sWhere));
+    Result:=DMC.cmdUpd(dbTableName,Context,sWhere) As TJSONObject;
   finally
     DMC.Destroy;
   end;
@@ -1306,7 +1309,7 @@ begin
   Context:='{}';
   SetJSON(Context,fldNames,fldValues);
   try
-    Result.AddPair('result',DMC.cmdUpd(dbTableName,Context,sWhere));
+    Result:=DMC.cmdUpd(dbTableName,Context,sWhere) As TJSONObject;
   finally
     DMC.Destroy;
   end;
@@ -1321,7 +1324,7 @@ begin
   DMC:=TFDMController.Create(dmMain);
   Result:=TJSONObject.Create;
   try
-    Result.AddPair('result',DMC.cmdDel(dbTableName,sWhere));
+    Result:=DMC.cmdDel(dbTableName,sWhere) As TJSONObject;
   finally
     DMC.Destroy;
   end;
@@ -1347,7 +1350,7 @@ begin
        Dcl.Text:=sDecl;
      end;
   try
-    result.AddPair('result',DMC.execTrans(Cmd, Dcl, sFields, pParams));
+    result:=DMC.execTrans(Cmd, Dcl, sFields, pParams) As TJSONObject;
   finally
     DMC.Destroy;
     Cmd.Destroy;
@@ -1366,7 +1369,7 @@ begin
   DMC:=TFDMController.Create(dmMain);
   Result:=TJSONObject.Create;
   try
-    result.AddPair('result',DMC.execTrans(cSQL, sDecl, sFields, pParams));
+    result:=DMC.execTrans(cSQL, sDecl, sFields, pParams) As TJSONObject;
   finally
     DMC.Destroy;
   end;
