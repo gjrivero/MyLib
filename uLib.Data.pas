@@ -747,7 +747,8 @@ function TFDMController.cmdAdd( const dbTableName, Context: String): TJSONValue;
          sIns:=sIns+
             '       OUTPUT inserted.id'+
             ', '+GetStr(pNameFlds,1,',').QuotedString+
-            ', '+GetStr(pValFlds,1,',')+#13#10+
+            ', '+GetStr(pValFlds,1,',')+#13#10;
+         sIns:=sIns+
             '         INTO @TempTable'#13#10+
             '       VALUES ('+pValFlds+')';
 
@@ -805,7 +806,7 @@ begin
           Dcl.Add('    field VARCHAR(30),');
           Dcl.Add('    value NVARCHAR(MAX)');
           Dcl.Add('  )');
-          fldsReturn:='id, field, value FROM @TempTable';
+          fldsReturn:='(SELECT id, field, value FROM @TempTable) insertedrows';
         end;
   end;
   try

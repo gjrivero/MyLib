@@ -43,7 +43,7 @@ var
 function  JSONFilter(sJSON: String): String;
 Function  FToStrSQL(ValueFloat: Extended; aDec: Integer=6): String; overload;
 Function  FToStrSQL(const Value: String; aDec: Integer=6): String; overload;
-Function  StrToReal(const St: String): Double;
+Function  StrToReal(const St: String; defDec: Integer=0): Double;
 Function  StrToInteger(St: String): Integer;
 Function  DeleteLastChar(const S: String; ch: Char): String;
 Function  DateStr(Date: TDateTime=-1): String;
@@ -172,8 +172,8 @@ function AssignVal(const AVarRec: TVarRec): String; Overload;
 function AssignVal(const AVarRec: Variant): String; Overload;
 function IsNumeric(const AString: string): Boolean;
 function VersionStr(nuVerMayor, nuVerMenor, nuVerRelease: Integer): String;
-function LoadResourceHTML( const RName: PChar; RType: PChar=Nil): String;
-function LoadResourceString( const RName: PCHAR; RType: PCHAR = RT_RCDATA ): String;
+function LoadResourceHTML( const RName: string; RType: PCHAR = Nil): String;
+function LoadResourceString( const RName: string; RType: PCHAR = RT_RCDATA ): String;
 function StringToHex(const S: String): String;
 function HexToString(const S: String): String;
 function StreamToString(Stream: TStream; Encoding: TEncoding=nil): string;
@@ -770,7 +770,7 @@ Begin
   Result:=GoodReal(StrToReal(S),defDec);
 End;
 
-Function StrToReal(const St: String): Double;
+Function StrToReal(const St: String; defDec: Integer=0): Double;
 Var
    I: Integer;
    Valor: Extended;
@@ -797,6 +797,8 @@ Begin
      sNum:='0';
   Try
     Valor := StrToFloat(sNum);
+    if defDec>0 then
+       Valor:=GoodReal(Valor,defDec);
   Except
     Valor := 0;
   End;
@@ -1068,12 +1070,12 @@ begin
   Result := MakeResourceURL(GetModuleName(Module), ResName, ResType);
 end;
 
-function LoadResourceHTML( const RName: PChar; RType: PChar=Nil): String;
+function LoadResourceHTML( const RName: string; RType: PCHAR=Nil): String;
 begin
-  Result := MakeResourceURL(GetModuleName(HInstance), RName, RType);
+  Result := MakeResourceURL(GetModuleName(HInstance), PCHAR(RName), RType);
 end;
 
-function LoadResourceString( const RName: PCHAR; RType: PCHAR = RT_RCDATA ): String;
+function LoadResourceString( const RName: string; RType: PCHAR = RT_RCDATA ): String;
 var
   streamResource: TResourceStream;
   sList: TStringList;
@@ -1081,7 +1083,7 @@ begin
   Result := '';
   streamResource := TResourceStream.Create(
                       HInstance,
-                      RName,
+                      PCHAR(RName),
                       RType);
   try
     sList := TStringList.Create;
