@@ -52,7 +52,8 @@ type
 
 var
   dmMain: TdmMain;
-  ADriverVendor: TStringList;
+  ADriverVendor,
+  ASQLiteSecurity,
   ADatabaseServer: TStringList;
 
 
@@ -113,9 +114,11 @@ end;
 initialization
   ADriverVendor:=TStringList.Create;
   ADatabaseServer:=TStringList.Create;
+  ASQLiteSecurity:=TStringList.Create;
 finalization
   ADriverVendor.Destroy;
   ADatabaseServer.Destroy;
+  ASQLiteSecurity.Destroy;
 end.
 
 
