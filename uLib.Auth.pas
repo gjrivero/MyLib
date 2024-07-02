@@ -26,14 +26,13 @@ Type
      function OtherActions( const uURL: String;
                                   action: Integer;
                             const method: string): string; virtual;
-     procedure GetAction( Const uURL, mPath, sPath: String;
-                          var action: Integer); virtual;
+     function GetAction( Const uURL, mPath, sPath: String): Integer; virtual;
      procedure SetDataSession(var sJSON: String); virtual;
      procedure CommonAuth( const aMainPath, sJSON: string;
                            UserRoles: TStrings;
                            var aResp: String);
      procedure SetValue(Session: TDSSession; const Key, Value: String);
-     constructor Create( Request: TWebRequest; var Credentials: String);
+     constructor Create(Request: TWebRequest; var Credentials: String);
      destructor destroy; virtual;
    protected
      AUser,
@@ -86,23 +85,22 @@ begin
   result:='{}';
 end;
 
-procedure TUserWebAuthenticate.GetAction( Const uURL, mPath, sPath: String;
-                                          var action: Integer);
+function TUserWebAuthenticate.GetAction( Const uURL, mPath, sPath: String): Integer;
 begin
-  action:=ACT_DEFAULT;
+  result:=ACT_DEFAULT;
   // /api/main/login
   if sPath=METHOD_PING then
-     action:=ACT_DIAGNOSTIC
+     result:=ACT_DIAGNOSTIC
   else
      if (GetStr(uURL,MethodIndex-1,'/')=mPath) then
         if sPath='login' then
-           action:=ACT_LOGIN
+           result:=ACT_LOGIN
         else
         if sPath='signup' then
-           action:=ACT_SIGNUP
+           result:=ACT_SIGNUP
         else
         if sPath='verify' then
-           action:=ACT_VERIFY;
+           result:=ACT_VERIFY;
 end;
 
 procedure TUserWebAuthenticate.SetDataSession(var sJSON: String);
@@ -143,14 +141,13 @@ procedure TUserWebAuthenticate.CommonAuth( const aMainPath, sJSON: string;
                                            var aResp: String);
 var
    Session: TDSSession;
-   sData,
    aJSON,
    errorMsg: string;
    Action: Integer;
    Valid: Boolean;
 begin
   errorMsg:='Invalid invocation!';
-  GetAction(Base_Url.ToLower,aMainPath,Method,Action);
+  Action:=GetAction(Base_Url.ToLower,aMainPath,Method);
   aResp:='';
   SetJSON(aResp,[SS_VALID],[false]);
   SetJSON(aJSON,[SS_VALID],[false]);

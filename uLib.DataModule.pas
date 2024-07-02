@@ -34,7 +34,6 @@ type
     Qry: TFDQuery;
     Cmd: TFDCommand;
     SQLiteDriver: TFDPhysSQLiteDriverLink;
-    SQLiteSecurity: TFDSQLiteSecurity;
     SQLiteValidate: TFDSQLiteValidate;
     procedure DataModuleCreate(Sender: TObject);
     procedure DataModuleDestroy(Sender: TObject);
@@ -76,6 +75,7 @@ begin
       begin
         SQLiteDriver.VendorHome:=ADriverVendor.Values['VendorHome'];
         SQLiteDriver.VendorLib:=ADriverVendor.Values['VendorLib'];
+        SQLiteValidate.Database:=ADatabaseServer.Values['Database'];
       end;
     TFDRDBMSKinds.MySQL:
       begin
@@ -109,7 +109,6 @@ begin
   PgDriver.Destroy;
 {$ENDIF}
 end;
-
 
 initialization
   ADriverVendor:=TStringList.Create;

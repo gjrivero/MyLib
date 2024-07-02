@@ -36,8 +36,11 @@ const
 var
    db_MAIN,
    db_CUST,
+   ds_session,
+
    ActiveMain,
    ActiveCustomer,
+
    DefConnection,
    MailHostSettings: String;
    ACustomerList: TStringList;

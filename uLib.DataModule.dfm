@@ -24,20 +24,17 @@ object dmMain: TdmMain
   end
   object Qry: TFDQuery
     Connection = Cnx
+    ResourceOptions.AssignedValues = [rvMacroCreate, rvMacroExpand, rvEscapeExpand]
     Left = 104
     Top = 24
   end
   object Cmd: TFDCommand
     Connection = Cnx
+    ResourceOptions.AssignedValues = [rvMacroCreate, rvMacroExpand, rvEscapeExpand]
     Left = 160
     Top = 24
   end
   object SQLiteDriver: TFDPhysSQLiteDriverLink
-    Left = 304
-    Top = 136
-  end
-  object SQLiteSecurity: TFDSQLiteSecurity
-    DriverLink = SQLiteDriver
     Left = 184
     Top = 136
   end

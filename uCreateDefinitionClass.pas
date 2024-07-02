@@ -71,15 +71,15 @@ Type
 
         procedure initTable(
                     const tableName: String;
-                          tAttr: TSetTableAttributes=[tbDict,tbAudit];
-                          pSequence: Boolean=True
+                          tAttr: TSetTableAttributes=[tbDict,tbAudit]
                   ); virtual;
         procedure makeTable; virtual;
         procedure executeSQL; virtual;
         constructor create(const pMSchema,
                                  pASchema,
                                  prbTables,
-                                 prbFields: String); virtual;
+                                 prbFields: String;
+                                 PSequence: Boolean=True); virtual;
         destructor destroy; virtual;
     end;
 
@@ -108,13 +108,13 @@ Type
         procedure dropAllTables; virtual;
         procedure initTable(
                     const tableName: String;
-                          tAttr: TSetTableAttributes=[tbDict,tbAudit];
-                          pSequence: Boolean=True
+                          tAttr: TSetTableAttributes=[tbDict,tbAudit]
                   ); override;
         constructor create(const pMSchema,
                                  pASchema,
                                  prbTables,
-                                 prbFields: String); override;
+                                 prbFields: String;
+                                 PSequence: Boolean=True); override;
         destructor destroy; override;
     end;
 
@@ -326,16 +326,18 @@ begin
   if (fieldType in [ftAutoInc,ftGUId]) Or
      (atPrimary In attributes) then
      begin
-       St:=St+' PRIMARY KEY NOT NULL';
-       if (fieldType In [ftAutoInc]) and isSequence then
+       St:=St+' PRIMARY KEY';
+       if (fieldType In [ftAutoInc]) then
           Case RDBMSKind Of
             TFDRDBMSKinds.PostgreSQL:
-              St:=St+#13+LeftS(' ',TAB_D)+
-                  'DEFAULT NEXTVAL('+QuotedStr(aSchema+'seq_'+lTableName)+')';
+              if isSequence  then
+                 St:=St+#13+LeftS(' ',TAB_D)+
+                     'DEFAULT NEXTVAL('+QuotedStr(aSchema+'seq_'+lTableName)+')';
             TFDRDBMSKinds.MSSQL:
-              St:=St+#13+LeftS(' ',TAB_D)+
+              if isSequence  then
+                 St:=St+#13+LeftS(' ',TAB_D)+
                   'DEFAULT (NEXT VALUE FOR '+aSchema+'seq_'+lTableName+')';
-            TFDRDBMSKinds.SQLite: ;
+            TFDRDBMSKinds.SQLite: St:=St+' AUTOINCREMENT';
             TFDRDBMSKinds.MySQL: ;
           End;
      end
@@ -474,12 +476,18 @@ end;
 
 constructor TTableBase.create(const pMSchema, pASchema,
                                     prbTables,
-                                    prbFields: String);
+                                    prbFields: String;
+                                    PSequence: Boolean=True);
 begin
   MSchema:=pMSchema.ToLower;
   ASchema:=pASchema.ToLower;
   rbTables:=prbTables.ToLower;
   rbFields:=prbFields.ToLower;
+  IsSequence:=pSequence;
+  Case RDBMSKind Of
+   TFDRDBMSKinds.SQLite:
+     isSequence:=False;
+  End;
   OnlyDict:=false;
   afldNames:=TStringList.Create;
   lSQL:=TStringList.Create;
@@ -503,8 +511,7 @@ begin
 end;
 
 procedure TTableBase.initTable(const tableName: String;
-                                     tAttr: TSetTableAttributes=[tbDict,tbAudit];
-                                     pSequence: Boolean=True);
+                                     tAttr: TSetTableAttributes=[tbDict,tbAudit]);
 var lSchema: String;
     altertbl: Boolean;
 begin
@@ -512,7 +519,6 @@ begin
   lTableName:=tableName.ToLower;
   alterTbl:=tbAlter in tAttr;
   rbOnly:=tbOnlyDict in tAttr;
-  isSequence:=pSequence;
   dictionary:=(tbDict in tAttr) or onlyDict Or rbOnly;
   lSchema:=ASchema;
   if rbOnly then
@@ -647,7 +653,7 @@ begin
       tSQL.Add('DROP TRIGGER IF EXISTS '+aAudit+';');
       tSQL.Add('--GO');
       tSQL.Add('CREATE TRIGGER '+aAudit);
-      tSQL.Add('BEFORE UPDATE ON  '+ASchema+lTableName+'');
+      tSQL.Add('BEFORE UPDATE ON '+ASchema+lTableName+'');
       tSQL.Add('   FOR EACH ROW');
       tSQL.Add('BEGIN');
       tSQL.Add('  INSERT INTO '+ASchema+LogTable+' (');
@@ -979,13 +985,14 @@ end;
 constructor TTableDefinition.create( const pMSchema,
                                            pASchema,
                                            prbTables,
-                                           prbFields: String);
+                                           prbFields: String;
+                                           PSequence: Boolean=True);
 begin
   fSQL:=TStringList.Create; // Triggers and procedures
   tSQL:=TStringList.Create; // Triggers and procedures
   aSQL:=TStringList.Create; // alter tables
 
-  inherited create(pMSchema,pASchema,prbTables,prbFields);
+  inherited create(pMSchema,pASchema,prbTables,prbFields,PSequence);
 end;
 
 destructor TTableDefinition.destroy;
@@ -1082,11 +1089,9 @@ begin
 end;
 
 procedure TTableDefinition.initTable( const tableName: String;
-                                      tAttr: TSetTableAttributes=[tbDict,tbAudit];
-                                      pSequence: Boolean=True);
+                                      tAttr: TSetTableAttributes=[tbDict,tbAudit]);
 begin
   Inherited initTable(tableName,tAttr);
-  isSequence:=pSequence;
   auditTable:=(tbAudit In tAttr);
   if (tbNoAudit in tAttr) or
      (tbOnlyDict in tAttr) then

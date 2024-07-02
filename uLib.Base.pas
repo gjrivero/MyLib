@@ -30,14 +30,14 @@ Const
    RT_HTML = 23;
 
 Type
-   TRandAttributes= (rdAllChar, rdAlpha, rdNumber, rdEspecial );
+   TRandAttributes = (rdAllChar, rdAlpha, rdNumber, rdEspecial );
    TDateTimeMode = (dtNone, dtBegin, dtEnd);
 
 var
-   ApplicationName,
-   ApplicationData,
-   ApplicationPath,
-   ApplicationLogs: String;
+   AppName,
+
+   AppPath,
+   AppFileLogs: String;
 
 
 function  JSONFilter(sJSON: String): String;
@@ -129,6 +129,9 @@ procedure SetFlds( var sLine: String;
 procedure SetJSON( Var sJSON: String;
                    const fields: array of string;
                    const values: array of const); overload;
+procedure SetJSON( var sJSON: PChar;
+                    const fields: array of string;
+                    const values: array of const); overload;
 procedure SetJSON( JSON: TJSONObject;
                    const fields: array of string;
                    const values: array of const); overload;
@@ -177,8 +180,8 @@ function LoadResourceString( const RName: string; RType: PCHAR = RT_RCDATA ): St
 function StringToHex(const S: String): String;
 function HexToString(const S: String): String;
 function StreamToString(Stream: TStream; Encoding: TEncoding=nil): string;
-function GetApplicationPath(LocalPath: Boolean): String;
 
+procedure GetApplicationPath(LocalPath: Boolean);
 procedure Compressfile(const filename: String);
 procedure DecompressFile(const filename: String);
 
@@ -198,23 +201,28 @@ function SetJSONResponse( iStatus: Integer;
                           aJSON: TJSONValue): TJSONObject; overload;
 
 procedure GetFieldsValues( JSON: TJSONObject;
-                           var sFields, sValues, sSetVal, sCondition: string;
-                           update: boolean=false);  overload;
+                           var sFields, sValues, sSetVal: string);  overload;
 procedure GetFieldsValues( sJSON: String;
-                           var sFields, sValues, sSetVal, sCondition: string;
-                           update: boolean=false);   overload;
+                           var sFields, sValues, sSetVal: string);   overload;
 procedure GetFieldsValues( pParams: TFDParams;
                            var sFields, sValues, sSetVal: string); overload;
 function RandString( ALength: Integer;
                      attr: TRandAttributes=rdAllChar): String;
 
 procedure saveTofile(const pFileName: String;
-                    const SourceText, CipherKey, IV: RawByteString;
-                          Crypted: Boolean);
+                     const SourceText,
+                          CipherKey,
+                          IV: RawByteString;
+                          Crypted: Boolean); overload;
+
+procedure saveTofile(const pFileName: String;
+                     const SourceText: RawByteString); overload;
 
 function loadFromfile(const pFileName: String;
                       const CipherKey, IV: RawByteString;
-                            Crypted: Boolean): RawByteString;
+                            Crypted: Boolean): RawByteString; overload;
+
+function loadFromfile(const pFileName: String): RawByteString; overload;
 
 function ValidateEmail(const emailAddress: string): Boolean;
 function IsInternetConnection: Boolean;
@@ -523,8 +531,7 @@ begin
 end;
 
 procedure GetFieldsValues( JSON: TJSONObject;
-                           var sFields, sValues, sSetVal, sCondition: string;
-                           update: boolean=false);
+                           var sFields, sValues, sSetVal: string);
 Var L: integer;
     field,
     value: String;
@@ -532,7 +539,6 @@ begin
   sValues:='';
   sFields:='';
   sSetVal:='';
-  sCondition:='';
   for L := 0 to JSON.Count-1 do
    begin
      field:=JSON.Pairs[L].JsonString.Value.ToLower;
@@ -552,40 +558,28 @@ begin
      else
         if Not Value.IsEmpty and (Value[1] In ['[','{']) then
            Case RDBMSKind of
-              TFDRDBMSKinds.MSSQL:
-                Value:='N'+Value.QuotedString;
-              else
-                Value:=Value.QuotedString;
+             TFDRDBMSKinds.MSSQL:
+               Value:='N'+Value.QuotedString;
+             else
+               Value:=Value.QuotedString;
            End;
-     if update and (CompareText(field,'id')=0) then
-        begin
-          sCondition:=field+'='+value;
-        end
-     else
-        begin
-          sFields:=sFields+','+field;
-          sValues:=sValues+','+value;
-          sSetVal:=sSetVal+','+field+'='+Value;
-        end;
+     sFields:=sFields+','+field;
+     sValues:=sValues+','+value;
+     sSetVal:=sSetVal+','+field+'='+Value;
    End;
   Delete(sValues,1,1);
   delete(sFields,1,1);
   delete(sSetVal,1,1);
-  if update and sCondition.IsEmpty then
-     begin
-       sCondition:=getStr(sFields,1,',')+'='+GetStr(sValues,1,',');
-     end;
 end;
 
 procedure GetFieldsValues( sJSON: String;
-                           var sFields, sValues, sSetVal, sCondition: string;
-                           update: boolean=false);
+                           var sFields, sValues, sSetVal: string);
 Var JSON: TJSONObject;
 begin
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
-       GetFieldsValues(JSON,sFields,sValues,sSetVal,sCondition,update);
+       GetFieldsValues(JSON,sFields,sValues,sSetVal);
        JSON.Destroy;
      end;
 end;
@@ -632,6 +626,12 @@ begin
   end;
 end;
 
+procedure saveTofile(const pFileName: String;
+                     const SourceText: RawByteString);
+begin
+  saveTofile(pFileName,SourceText,'','',false);
+end;
+
 function loadFromfile(const pFileName: String;
                       const CipherKey, IV: RawByteString;
                             Crypted: Boolean): RawByteString;
@@ -656,6 +656,11 @@ begin
   finally
     MS.Destroy;
   end;
+end;
+
+function loadFromfile(const pFileName: String): RawByteString;
+begin
+  result:=loadFromfile(pFileName,'','',false);
 end;
 
 procedure Compressfile(const filename: String);
@@ -737,7 +742,7 @@ begin
   end;
 end;
 
-function  FormatDef(T: Double; DefDecimals: Integer=2): String; Overload;
+function FormatDef(T: Double; DefDecimals: Integer=2): String; Overload;
 Var
    StC,
    St0,
@@ -755,7 +760,7 @@ begin
   Result:=FormatFloat(sFmt,T);
 end;
 
-function  FormatDef(S: String; DefDecimals: Integer=2): String; Overload;
+function FormatDef(S: String; DefDecimals: Integer=2): String; Overload;
 begin
   Result:=FormatDef(StrToReal(S),DefDecimals);
 end;
@@ -960,6 +965,22 @@ begin
      end;
 end;
 
+procedure SetJSON( var sJSON: PChar;
+                    const fields: array of string;
+                    const values: array of const);
+var
+   JSON: TJSONObject;
+begin
+  JSON:=CreateTJSONObject(sJSON);
+  if JSON<>Nil then
+     begin
+       SetJSON(JSON,fields,values);
+       //sJSON:=JSON.Format(JSONIndent);
+       sJSON:=PChar(JSON.ToJSON);
+       JSON.Destroy;
+     end;
+end;
+
 function StrToDateTimeFmt(sDateTime: String): TDateTime;
 var
   fs: TFormatSettings;
@@ -992,8 +1013,8 @@ Begin
   Result:=St;
 End;
 
-{ unit: WinApi.Windows
-
+{
+  unit: WinApi.Windows
   RT_CURSOR       = MakeIntResource(1);
   RT_BITMAP       = MakeIntResource(2);
   RT_ICON         = MakeIntResource(3);
@@ -1009,7 +1030,6 @@ End;
   RT_ANICURSOR    = MakeIntResource(21)
   RT_ANIICON      = MakeIntResource(22)
   RT_HTML         = MakeIntResource(23);
-
 }
 
 (*
@@ -1508,8 +1528,6 @@ End;
 
 Function GetDate(OJSON: TJSONObject; const fieldname: String; Default: TDateTime=0): TDateTime; Overload;
 Begin
-  if Default=0 then
-     Default:=Now();
   Result:=StrToDateTimeFmt(GetStr(OJSON,fieldName));
 End;
 
@@ -1540,8 +1558,6 @@ End;
 Function GetDate(const sJSON, fieldname: String; Default: TDateTime=0): TDateTime;
 var JSON: TJSONObject;
 begin
-  if Default=0 then
-     Default:=Now();
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
@@ -1555,8 +1571,6 @@ end;
 Function GetDate(Item: IXMLNode; const AttribName: String; Default: TDateTime=0): TDateTime; Overload;
 Var St: String;
 Begin
-  if Default=0 then
-     Default:=Now();
   St:=Trim(varToStrDef(Item.Attributes[AttribName],''));
   Result:=StrToDateTimeFmt(St);
 End;
@@ -1564,8 +1578,6 @@ End;
 Function GetDate(Item: IXMLNode; Default: TDateTime=0): TDateTime; Overload;
 Var St: String;
 Begin
-  if Default=0 then
-     Default:=Now();
   St:=Trim(varToStrDef(Item.NodeValue,''));
   Result:=StrToDateTimeFmt(St);
 End;
@@ -1801,7 +1813,6 @@ begin
      rmDELETE: iResp:=nReq.Delete(sURL,nil,LHeader);
     end;
     result:=iResp;
-    //sResp:=iResp.ContentAsString();
   except
     on E: ENetException do begin
       if not (E is ENetHTTPClientException) then
@@ -1953,22 +1964,21 @@ end;
 procedure SaveLogFile(const sMessage: String);
 Var
   FLog: TextFile;
-  sJSON: String;
+  sText: String;
 begin
   //-------------------------------------------
-  AssignFile(FLog, ApplicationLogs);
-  if Not FileExists(ApplicationLogs) then
+  AssignFile(FLog, AppFileLogs);
+  if Not FileExists(AppFileLogs) then
     Rewrite(FLog)
   else
     Append(FLog);
   //--------------------------------------------------
-  sJSON:='{"date":"'+DateTimeStr(Now())+'"';
-  sJSON:=sJSON+',"message":"'+trim(ReplaceText(sMessage,#13#10,' '))+'"}';
-  Writeln(FLog,sJSON);
+  sText:='date: '+DateTimeStr(Now())+' message: '+Trim(sMessage)+'';
+  Writeln(FLog,sText);
   CloseFile(FLog);
 end;
 
-function GetApplicationPath(LocalPath: Boolean): String;
+procedure GetApplicationPath(LocalPath: Boolean);
 var
    lPath,
    AppName,
@@ -1990,13 +2000,12 @@ begin
      begin
        lPath :=ExtractFilePath(paramstr(0));
      end;
-  result:=lPath;
+  AppPath:=lPath;
+  AppFileLogs:=lPath+'logs'+PathDelim+'logs.txt';
 end;
 
 initialization
-  ApplicationPath:=GetApplicationPath(false);
-  ApplicationLogs:=ApplicationPath+PathDelim+'logs'+PathDelim;
-  ApplicationData:=ApplicationPath+PathDelim+'data'+PathDelim;
+  GetApplicationPath(false);
 finalization
 
 end.

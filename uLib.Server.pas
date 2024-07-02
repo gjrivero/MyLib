@@ -36,43 +36,45 @@ type
     AIV,
     AKey_Settings: RawByteString;
     ACrypted: Boolean;
-    LAppSettings,
-    SettingsFile,
+    AFile_Settings,
     HostSettings: String;
     LLocalEvents: TServerLocalEvents;
     LIOHandleSSL: TIdServerIOHandlerSSLOpenSSL;
-    FGetAppSettings: String;
     SchedulerOfThreadPool: TIdSchedulerOfThreadPool;
-    procedure SetGetAppSettings(const Value: String);
   private
     function BindPort(APort: Integer): Boolean;
     function CheckPort(APort: Integer): Integer;
-    procedure LoadConnectionSettings(
-                const AppFileName: String;
+    function LoadConnectionSettings(
                 const Key_Settings, IV: RawByteString;
-                Crypted: Boolean;
-                LocalDir: Boolean);
+                Crypted: Boolean): string;
   public
     APort: Integer;
     sProtocol,
-    LastMessage: String;
+    LastMessage,
+    AppSettings: String;
     FServer: TIdHTTPWebBrokerBridge;
-    property GetAppSettings: String read FGetAppSettings write SetGetAppSettings;
+    function DefaultConnectionSettings(): string; virtual;
     procedure SetPort(APort: String);
     procedure StartServer();
     procedure StopServer();
     procedure SetDatabaseSchemas();
-    procedure SaveSettings(const AppSettings: String);
-    procedure DefaultConnectionSettings(Var AppSettings: String); virtual;
-    Constructor Create( const AppFileName: String;
+    procedure SaveSettings();
+    Constructor Create( const File_Settings: String;
                         const Key_Settings,
                         IV: RawByteString;
-                        Crypted: Boolean;
-                        LocalDir: Boolean=false);
+                        Crypted: Boolean);
     Destructor Destroy();
   end;
 
 resourcestring
+  cArrow = '-> ';
+  cCommandStart = 'start';
+  cCommandStop = 'stop';
+  cCommandStatus = 'status';
+  cCommandHelp = 'help';
+  cCommandSetPort = 'set port';
+  cCommandExit = 'exit';
+
   sPortInUse = '- Error: Port %s already in use';
   sPortSet = '- Port set to %s';
   sServerRunning = '- The Server is already running';
@@ -93,14 +95,6 @@ resourcestring
     '   - "help" to show commands'+ slineBreak +
     '   - "exit" to close the application';
 
-const
-  cArrow = '-> ';
-  cCommandStart = 'start';
-  cCommandStop = 'stop';
-  cCommandStatus = 'status';
-  cCommandHelp = 'help';
-  cCommandSetPort = 'set port';
-  cCommandExit = 'exit';
 
 var
    DomainPrefix: Boolean;
@@ -134,9 +128,6 @@ uses
     uLib.DataModule,
     uLib.Common;
 
-const
-  logsFolder = 'logs';
-  settingFolder = 'settings';
 
 var
   App: TDSHTTPApplication;
@@ -304,21 +295,24 @@ begin
 end;
 
 constructor TIdHTTPWebBrokerServer.Create(
-              const AppFileName: String;
+              const File_Settings: String;
               const Key_Settings, IV: RawByteString;
-              Crypted: Boolean;
-              LocalDir: Boolean=false);
+              Crypted: Boolean);
 var
-  CertifiedPath,
+  lPathSettings,
   aSSLCertificate: String;
 begin
+  AFile_Settings:=File_Settings;
+  lPathSettings:=ExtractFilePath(File_Settings);
+
+  AKey_Settings:=Key_Settings;
+  AIV:=IV;
+  ACrypted:=Crypted;
+
   LLocalEvents := TServerLocalEvents.Create;
   FServer := TIdHTTPWebBrokerBridge.Create(Nil);
-
   // FServer.OnParseAuthentication := LLocalEvents.OnParseAuthentication;
-
   App:=TDSHTTPApplication(FServer);
-
   SchedulerOfThreadPool := TIdSchedulerOfThreadPool.Create(FServer);
   SchedulerOfThreadPool.PoolSize := 50;
   FServer.Scheduler := SchedulerOfThreadPool;
@@ -326,23 +320,23 @@ begin
 
   LIOHandleSSL := Nil;
   sProtocol:='http';
-  AKey_Settings:=Key_Settings;
-  AIV:=IV;
-  ACrypted:=Crypted;
-  LoadConnectionSettings(AppFileName,Key_Settings,IV,Crypted,LocalDir);
-  HostSettings:=GetStr(GetAppSettings,'host');
-  MailHostSettings:=GetStr(GetAppSettings,'mail_host');
+
+  AppSettings:=LoadConnectionSettings(Key_Settings,IV,Crypted);
+
+  HostSettings:=GetStr(AppSettings,'host');
+  MailHostSettings:=GetStr(AppSettings,'mail_host');
+
   DomainPrefix:=GetBool(HostSettings,'domain_prefix');
   FServer.DefaultPort:=GetInt(HostSettings,'http_port');
   aSSLCertificate:=GetStr(HostSettings,'certificates');
+
   LLocalEvents.SSLCertificate:=aSSLCertificate;
-  CertifiedPath:=ApplicationPath+settingFolder+PathDelim;
-  if FileExists(CertifiedPath+GetStr(aSSLCertificate,'cert_file')) then
+  if FileExists(lPathSettings+GetStr(aSSLCertificate,'cert_file')) then
      begin
        LIOHandleSSL := TIdServerIOHandlerSSLOpenSSL.Create(FServer);
-       LIOHandleSSL.SSLOptions.CertFile := CertifiedPath+GetStr(aSSLCertificate,'cert_file');
-       LIOHandleSSL.SSLOptions.KeyFile := CertifiedPath+GetStr(aSSLCertificate,'key_file');
-       LIOHandleSSL.SSLOptions.RootCertFile := CertifiedPath+GetStr(aSSLCertificate,'root_file');
+       LIOHandleSSL.SSLOptions.CertFile := lPathSettings+GetStr(aSSLCertificate,'cert_file');
+       LIOHandleSSL.SSLOptions.KeyFile := lPathSettings+GetStr(aSSLCertificate,'key_file');
+       LIOHandleSSL.SSLOptions.RootCertFile := lPathSettings+GetStr(aSSLCertificate,'root_file');
 
        LIOHandleSSL.SSLOptions.Method:=sslvSSLv23;
        LIOHandleSSL.SSLOptions.Mode:=sslmServer;
@@ -356,14 +350,16 @@ begin
   LastMessage:='- '+sProtocol+' Server created.';
 end;
 
-procedure TIdHTTPWebBrokerServer.DefaultConnectionSettings(Var AppSettings: String);
+function TIdHTTPWebBrokerServer.DefaultConnectionSettings(): String;
 Var
-  aJSON: String;
+  aJSON,
+  Settings: String;
 begin
-  AppSettings:='';
+  Settings:='';
   aJSON:='';
   SetJSON(aJSON,['uuId','password'],['','']);
-  SetJSON(AppSettings,['security'],[aJSON]);
+  SetJSON(Settings,['security'],[aJSON]);
+  Result:=Settings;
 end;
 
 destructor TIdHTTPWebBrokerServer.Destroy;
@@ -377,36 +373,19 @@ begin
   Inherited;
 end;
 
-procedure TIdHTTPWebBrokerServer.LoadConnectionSettings(
-              const AppFileName: String;
+function TIdHTTPWebBrokerServer.LoadConnectionSettings(
               const Key_Settings, IV: RawByteString;
-              Crypted: Boolean;
-              LocalDir: Boolean);
+              Crypted: Boolean): String;
 var
   tJSON: TJSONArray;
-  aJSON: String;
+  aJSON,
+  PathData: String;
+  lAppSettings: String;
 begin
-  ApplicationPath:=GetApplicationPath(LocalDir); // True para usar directorio aplicacion
-  ApplicationData:=ApplicationPath+'data'+PathDelim;
   // -----------------------------------------------
-  if Not DirectoryExists(ApplicationPath+logsFolder) then
-     begin
-       ForceDirectories(ApplicationPath+logsFolder);
-     end;
-  ApplicationLogs:=ApplicationPath+logsFolder+PathDelim+ApplicationName+'.log';
-  // -----------------------------------------------
-  if Not DirectoryExists(ApplicationPath+settingFolder) then
-     begin
-       ForceDirectories(ApplicationPath+settingFolder);
-     end;
-  SettingsFile:=ApplicationPath+settingFolder+PathDelim+ApplicationName+'.cnf';
-  // -----------------------------------------------
-  LAppSettings:= loadFromfile(SettingsFile, Key_Settings,IV, Crypted);
-  if LAppSettings='' then
-     begin
-       DefaultConnectionSettings(LAppSettings);
-       saveTofile(SettingsFile,LAppSettings,KEY_SETTINGS,IV, CRYPTED);
-     end;
+  lAppSettings:=loadFromfile(AFile_Settings, AKEY_SETTINGS,AIV,ACRYPTED);
+  if lAppSettings.IsEmpty then
+     lAppSettings:=DefaultConnectionSettings;
   // -----------------------------------------------
   aJSON:=GetStr(LAppSettings,'connection');
   RDBMSKind:=GetDriverID(GetStr(AJSON, 'driverId'));
@@ -448,17 +427,12 @@ begin
       ACustomerList.add(sCust);
     end;
   tJSON.destroy;
-  GetAppSettings:= LAppSettings;
+  result:= LAppSettings;
 end;
 
-procedure TIdHTTPWebBrokerServer.SaveSettings(const AppSettings: String);
+procedure TIdHTTPWebBrokerServer.SaveSettings();
 begin
-  saveToFile( SettingsFile, AppSettings, AKEY_SETTINGS,AIV,ACRYPTED);
-end;
-
-procedure TIdHTTPWebBrokerServer.SetGetAppSettings(const Value: String);
-begin
-  FGetAppSettings := Value;
+  saveToFile( AFile_Settings, AppSettings, AKEY_SETTINGS,AIV,ACRYPTED);
 end;
 
 procedure TIdHTTPWebBrokerServer.SetPort(APort: String);
@@ -471,9 +445,8 @@ begin
          FServer.DefaultPort := APort.ToInteger;
 
          SetJSON(HostSettings,['http_port'],[FServer.DefaultPort]);
-         SetJSON(LAppSettings, ['host'],[HostSettings]);
-         SaveSettings(LAppSettings);
-
+         SetJSON(AppSettings, ['host'],[HostSettings]);
+         SaveSettings();
          LastMessage:=Format(sPortSet, [APort]);
        end
     else
