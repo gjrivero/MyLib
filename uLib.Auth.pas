@@ -4,7 +4,9 @@ interface
 
 uses
     Web.HTTPApp,
+{$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
     Datasnap.DSSession,
+{$ENDIF}
     System.JSON,
     System.SysUtils,
     System.classes;

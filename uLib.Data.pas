@@ -130,12 +130,15 @@ uses
     System.IOUtils,
     System.Math,
     System.Net.URLClient,
-    Datasnap.DSSession,
-    Data.DBXPlatform,
     FireDAC.Comp.Client,
     FireDAC.Stan.Error,
+{$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
+    Datasnap.DSSession,
+    Data.DBXPlatform,
 
     uLib.Auth,
+{$ENDIF}
+
     uLib.Base,
     uLib.Helpers,
     uLib.Common,
@@ -983,8 +986,22 @@ function setQueryPaged(Const dbTable, sFields, sWhere: String): String;
       end;
   end;
 
+  procedure GetQueryParams(var lWhere, sOrderby: string; var pagesize,page,Limit: integer);
+  {$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
+  var
+    metaData: TDSInvocationMetadata;
+    i: integer;
+  {$ENDIF}
+  begin
+    {$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
+    metaData := GetInvocationMetadata;
+    for i := 0 to Pred(metaData.QueryParams.Count) do
+      begin
+        setCompare(metaData.QueryParams[i],lWhere,sOrderby,pagesize,page,Limit);
+      end;
+    {$ENDIF}
+  end;
 var
-   metaData: TDSInvocationMetadata;
    stCmd: TstringList;
    sFlds,
    lWhere,
@@ -994,15 +1011,11 @@ var
    Limit,
    PageSize: Integer;
 begin
-  metaData := GetInvocationMetadata;
   lWhere:=sWhere;
   Page:=0;
   Limit:=0;
   PageSize:=0;
-  for i := 0 to Pred(metaData.QueryParams.Count) do
-   begin
-     setCompare(metaData.QueryParams[i],lWhere,sOrderby,pagesize,page,Limit);
-   end;
+  GetQueryParams(lWhere, sOrderby,pagesize,page,Limit);
   sFlds:=sFields.ToLower;
   if sFlds='' then
      sFlds:='*';

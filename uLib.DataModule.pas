@@ -7,7 +7,6 @@ uses
   System.SysUtils, System.Classes,
   Data.DB,
   Data.DBXPlatform,
-  Datasnap.DSSession,
 
   FireDAC.Stan.Intf, FireDAC.Stan.Option,
   FireDAC.Stan.Error, FireDAC.UI.Intf, FireDAC.Phys.Intf, FireDAC.Stan.Def,
@@ -22,6 +21,7 @@ uses
   ,FireDAC.Phys.MySQLDef
   ,FireDAC.Phys.PG
   ,FireDAC.Phys.PGDef
+  ,Datasnap.DSSession
 {$ENDIF}
   ,System.Generics.Collections, FireDAC.Stan.ExprFuncs;
 
@@ -69,14 +69,15 @@ begin
   Cnx.DriverName:=ADatabaseServer.Values['DriverId'];
   RDBMSKind:=Cnx.RDBMSKind;
   case Cnx.RDBMSKind of
-    TFDRDBMSKinds.MSSQL:
-      ;
     TFDRDBMSKinds.SQLite:
       begin
         SQLiteDriver.VendorHome:=ADriverVendor.Values['VendorHome'];
         SQLiteDriver.VendorLib:=ADriverVendor.Values['VendorLib'];
         SQLiteValidate.Database:=ADatabaseServer.Values['Database'];
       end;
+{$IF DEFINED(LINUX) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
+    TFDRDBMSKinds.MSSQL:
+      ;
     TFDRDBMSKinds.MySQL:
       begin
         MySQLDriver.VendorHome:=ADriverVendor.Values['VendorHome'];
@@ -87,6 +88,7 @@ begin
         PGDriver.VendorHome:=ADriverVendor.Values['VendorHome'];
         PGDriver.VendorLib:=ADriverVendor.Values['VendorLib'];
       end;
+{$ENDIF}
   end;
 end;
 
