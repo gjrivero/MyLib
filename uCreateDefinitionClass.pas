@@ -131,10 +131,10 @@ Uses
 
 Const
     PR_AUDIT_TRACE   = 'aud_trace';
-    PR_LAST_UPDATE   = 'aud_date_update';
-    PR_NEXT_VALUE    = 'aud_next_value';
-    PR_NEXT_SEQUENCE = 'aud_sequence';
-    PR_ENTP_SEQUENCE = 'aud_ent_seq';
+    PR_LAST_UPDATE   = 'aud_date';
+    PR_NEXT_VALUE    = 'aud_next';
+    PR_NEXT_SEQUENCE = 'aud_seq';
+    PR_ENTP_SEQUENCE = 'aud_entseq';
 
 
 procedure processSQL(sqlCmd: TStringList; pParams: TFDParams=nil; aSave: boolean=false);
@@ -636,8 +636,7 @@ begin
       tSQL.Add('   FOR EACH ROW');
       tSQL.Add('BEGIN');
       tSQL.Add('  INSERT INTO '+ASchema+LogTable+' (');
-      tSQL.Add('          eventTime, user_id, username,');
-      tSQL.Add('          tablename, operation, ');
+      tSQL.Add('          eventTime, user_id, username,tablename, operation,');
       tSQL.Add('          beforeValue, afterValue');
       tSQL.Add('         )');
       tSQL.Add('         SELECT DATETIME(CURRENT_TIMESTAMP, ''localtime''), ');
@@ -657,9 +656,7 @@ begin
       tSQL.Add('   FOR EACH ROW');
       tSQL.Add('BEGIN');
       tSQL.Add('  INSERT INTO '+ASchema+LogTable+' (');
-      tSQL.Add('          eventTime, ');
-      tSQL.Add('          user_id, username,');
-      tSQL.Add('          tablename, operation, ');
+      tSQL.Add('          eventTime, user_id, username,tablename, operation, ');
       tSQL.Add('          beforeValue, afterValue');
       tSQL.Add('         )');
       tSQL.Add('         SELECT DATETIME(CURRENT_TIMESTAMP, ''localtime''), ');
@@ -679,9 +676,7 @@ begin
       tSQL.Add('   FOR EACH ROW');
       tSQL.Add('BEGIN');
       tSQL.Add('  INSERT INTO '+ASchema+LogTable+' (');
-      tSQL.Add('          eventTime, ');
-      tSQL.Add('          user_id,username,');
-      tSQL.Add('          tablename, operation, ');
+      tSQL.Add('          eventTime, user_id,username,tablename, operation, ');
       tSQL.Add('          beforeValue, afterValue');
       tSQL.Add('         )');
       tSQL.Add('         SELECT DATETIME(CURRENT_TIMESTAMP, ''localtime''), ');
@@ -806,7 +801,7 @@ procedure TTableDefinition.lastDateProcTable;
 Var
    aDateUpd: String;
 begin
-  aDateUpd:=ASchema+lTableName+'_tblupd';
+  aDateUpd:=ASchema+lTableName+'_upd';
 
   case RDBMSKind Of
    TFDRDBMSKinds.SQLite:
@@ -814,12 +809,12 @@ begin
        tSQL.Add('DROP TRIGGER IF EXISTS '+aDateUpd+';');
        tSQL.Add('--GO');
        tSQL.Add('CREATE TRIGGER '+aDateUpd);
-       tSQL.Add('BEFORE UPDATE ON '+ASchema+lTableName+'');
+       tSQL.Add('AFTER UPDATE ON '+ASchema+lTableName+'');
+       tSQL.Add('FOR EACH ROW');
        tSQL.Add('BEGIN');
-       tSQL.Add('  UPDATE tbl SET tbl.updatedat=CURRENT_TIMESTAMP');
-       tSQL.Add('    FROM '+ASchema+lTableName+' tbl;');
-       tSQL.Add('         INNER JOIN inserted ins');
-       tSQL.Add('         ON (tbl.id=ins.id);');
+       tSQL.Add('  UPDATE '+ASchema+lTableName+'');
+       tSQL.Add('     SET updatedat = datetime(''now'')');
+       tSQL.Add('   WHERE rowid = NEW.rowid;');
        tSQL.Add('END;');
      End;
    TFDRDBMSKinds.MYSQL:
@@ -827,7 +822,7 @@ begin
        tSQL.Add('DROP TRIGGER IF EXISTS '+aDateUpd+';');
        tSQL.Add('--GO');
        tSQL.Add('CREATE TRIGGER '+aDateUpd);
-       tSQL.Add('BEFORE UPDATE ON '+ASchema+lTableName+'');
+       tSQL.Add('AFTER UPDATE ON '+ASchema+lTableName+'');
        tSQL.Add('   FOR EACH ROW');
        tSQL.Add('BEGIN');
        tSQL.Add('  SET NEW.updatedat=CURRENT_TIMESTAMP();');
@@ -850,7 +845,7 @@ begin
      End;
    TFDRDBMSKinds.PostgreSQL:
      Begin
-       aDateUpd:=lTableName+'_tblupd';
+       aDateUpd:=lTableName+'_upd';
        tSQL.Add('CREATE OR REPLACE TRIGGER '+aDateUpd+'');
        tSQL.Add(' AFTER INSERT OR UPDATE OR DELETE');
        tSQL.Add('    ON '+ASchema+lTableName);
@@ -863,8 +858,6 @@ end;
 
 procedure TTableDefinition.createCommonTriggers(const aSchema: String);
 begin
-  if RDBMSKind in [TFDRDBMSKinds.SQLite] then
-     exit;
   if onlyDict or rbOnly then
      exit;
   case RDBMSKind of
@@ -900,7 +893,6 @@ begin
         fSQL.Add('END;');
         fSQL.Add('$$ LANGUAGE plpgsql;');
         fSQL.Add('--GO');
-
 
         fSQL.Add('CREATE OR REPLACE FUNCTION '+PR_NEXT_SEQUENCE+'()');
         fSQL.Add('RETURNS TRIGGER AS $$');

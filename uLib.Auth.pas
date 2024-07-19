@@ -264,7 +264,7 @@ begin
                P:=Length(sToken);
             sToken:=Copy(sToken,1,P);
             sToken:=GetStr(sToken,2,'=');
-           end;
+          end;
        if Not sToken.IsEmpty {and (lMethod='GET')} then
           begin
             sToken:=TNetEncoding.Base64.Decode(sToken);

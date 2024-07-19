@@ -37,6 +37,7 @@ var
    AppName,
 
    AppPath,
+   AppParams,
    AppFileLogs: String;
 
 
@@ -1985,7 +1986,8 @@ var
    AppStationName: String;
 begin
   AppStationName := GetEnvironmentVariable('COMPUTERNAME');
-  AppName := ChangeFileExt(ExtractFileName(paramstr(0)), ''); // Ohne Endung
+  if AppName='' then
+     AppName := ChangeFileExt(ExtractFileName(paramstr(0)), ''); // Ohne Endung
 {$IF DEFINED (Linux) or DEFINED (MACOS)}
   lPath := IncludeTrailingPathDelimiter(GetHomePath) + '.config/' +
                    AppName + PathDelim;
@@ -2005,7 +2007,12 @@ begin
 end;
 
 initialization
+  AppPath:='';
+  AppParams:='';
+  AppFileLogs:='';
+
   GetApplicationPath(false);
 finalization
 
 end.
+
