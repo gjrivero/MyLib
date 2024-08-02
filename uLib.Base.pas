@@ -34,93 +34,93 @@ Type
    TDateTimeMode = (dtNone, dtBegin, dtEnd);
 
 var
-   AppName,
-
-   AppPath,
-   AppParams,
-   AppFileLogs: String;
+   App_Name,
+   App_Path,
+   App_Params,
+   App_Version,
+   App_FileLogs: String;
 
 
 function  JSONFilter(sJSON: String): String;
-Function  FToStrSQL(ValueFloat: Extended; aDec: Integer=6): String; overload;
-Function  FToStrSQL(const Value: String; aDec: Integer=6): String; overload;
-Function  StrToReal(const St: String; defDec: Integer=0): Double;
-Function  StrToInteger(St: String): Integer;
-Function  DeleteLastChar(const S: String; ch: Char): String;
-Function  DateStr(Date: TDateTime=-1): String;
-Function  DateTimeStr(Date: TDateTime=-1; Mode: TDateTimeMode = dtNone): String;
+function  FToStrSQL(ValueFloat: Extended; aDec: Integer=6): String; overload;
+function  FToStrSQL(const Value: String; aDec: Integer=6): String; overload;
+function  StrToReal(const St: String; defDec: Integer=0): Double;
+function  StrToInteger(St: String): Integer;
+function  DeleteLastChar(const S: String; ch: Char): String;
+function  DateStr(Date: TDateTime=-1): String;
+function  DateTimeStr(Date: TDateTime=-1; Mode: TDateTimeMode = dtNone): String;
 function  StrToDateTimeFmt(sDateTime: String): TDateTime;
 function  FormatDef(T: Double; DefDecimals: Integer=2): String; Overload;
 function  FormatDef(S: String; DefDecimals: Integer=2): String; Overload;
-Function  GoodReal(R: Double; defDec: Integer=2): Double; Overload;
-Function  GoodReal(S: String; defDec: Integer=2): Double; Overload;
-Function  DivCero(A,B: Double): Double;
+function  GoodReal(R: Double; defDec: Integer=2): Double; Overload;
+function  GoodReal(S: String; defDec: Integer=2): Double; Overload;
+function  DivCero(A,B: Double): Double;
 function  LeftS(S: String; Len: Integer; Ch: Char=' '): String;
 
-Function  GetFloat(OJSON: TJSONObject; const fieldname: String; Default: Double=0): Double; Overload;
-Function  GetFloat(const sJSON, fieldname: String; Default: Double=0): Double; Overload;
-Function  GetFloat(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Double; OverLoad;
-Function  GetFloat(const St: String; Index: Integer; CDiv: Char=ChDiv): Double; OverLoad;
-Function  GetFloat(Item: IXMLNode; const AttribName: String; Default: Double=0): Double; Overload;
-Function  GetFloat(Item: IXMLNode; Default: Double=0): Double; Overload;
-Function  GetFloat(FT: TDataSet; const FieldName: String): Double; OverLoad;
+function  GetFloat(OJSON: TJSONObject; const fieldname: String; Default: Double=0): Double; Overload;
+function  GetFloat(const sJSON, fieldname: String; Default: Double=0): Double; Overload;
+function  GetFloat(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Double; OverLoad;
+function  GetFloat(const St: String; Index: Integer; CDiv: Char=ChDiv): Double; OverLoad;
+function  GetFloat(Item: IXMLNode; const AttribName: String; Default: Double=0): Double; Overload;
+function  GetFloat(Item: IXMLNode; Default: Double=0): Double; Overload;
+function  GetFloat(FT: TDataSet; const FieldName: String): Double; OverLoad;
 
-Function  GetInt(OJSON: TJSONObject; const fieldname: String; Default: Integer=0): Integer; Overload;
-Function  GetInt(const sJSON, fieldname: String; Default: Integer=0): Integer; Overload;
-Function  GetInt(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Integer; OverLoad;
-Function  GetInt(const St: String; Index: Integer; CDiv: Char=ChDiv): Integer; Overload;
-Function  GetInt(Item: IXMLNode; const AttribName: String; Default: Integer=0): Integer; Overload;
-Function  GetInt(Item: IXMLNode; Default: Integer=0): Integer; Overload;
-Function  GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;
+function  GetInt(OJSON: TJSONObject; const fieldname: String; Default: Integer=0): Integer; Overload;
+function  GetInt(const sJSON, fieldname: String; Default: Integer=0): Integer; Overload;
+function  GetInt(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Integer; OverLoad;
+function  GetInt(const St: String; Index: Integer; CDiv: Char=ChDiv): Integer; Overload;
+function  GetInt(Item: IXMLNode; const AttribName: String; Default: Integer=0): Integer; Overload;
+function  GetInt(Item: IXMLNode; Default: Integer=0): Integer; Overload;
+function  GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;
 
-Function  GetStr(OJSON: TJSONObject; const FieldName: String; Default: String=''): String; Overload;
-Function  GetStr(const sJSON, fieldname: String; Default: String=''): String; Overload;
-Function  GetStr(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): String; Overload;
-Function  GetStr(const St: String; Index: Integer; CDiv: String): String; Overload;
-Function  GetStr(const St: String; Index: Integer; CDiv: Char=ChDiv): String; Overload;
+function  GetStr(OJSON: TJSONObject; const FieldName: String; Default: String=''): String; Overload;
+function  GetStr(const sJSON, fieldname: String; Default: String=''): String; Overload;
+function  GetStr(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): String; Overload;
+function  GetStr(const St: String; Index: Integer; CDiv: String): String; Overload;
+function  GetStr(const St: String; Index: Integer; CDiv: Char=ChDiv): String; Overload;
 function  GetStr(Item: IXMLNode): String; Overload;
-Function  GetStr(Item: IXMLNode; const AttribName: String): String; Overload;
-Function  GetStr(FT: TDataSet; const FieldName: String): String; Overload;
+function  GetStr(Item: IXMLNode; const AttribName: String): String; Overload;
+function  GetStr(FT: TDataSet; const FieldName: String): String; Overload;
 
-Function  GetDate(OJSON: TJSONObject; const fieldname: String; Default: TDateTime=0): TDateTime; Overload;
-Function  GetDate(const sJSON, fieldname: String; Default: TDateTime=0): TDateTime; Overload;
-Function  GetDate(FT: TDataSet; const FieldName: String): TDateTime; Overload;
-Function  GetDate(const St: String; Index: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
-Function  GetDate(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
-Function  GetDate(Item: IXMLNode; const AttribName: String; Default: TDateTime=0): TDateTime; Overload;
-Function  GetDate(Item: IXMLNode; Default: TDateTime=0): TDateTime; Overload;
+function  GetDate(OJSON: TJSONObject; const fieldname: String; Default: TDateTime=0): TDateTime; Overload;
+function  GetDate(const sJSON, fieldname: String; Default: TDateTime=0): TDateTime; Overload;
+function  GetDate(FT: TDataSet; const FieldName: String): TDateTime; Overload;
+function  GetDate(const St: String; Index: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
+function  GetDate(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
+function  GetDate(Item: IXMLNode; const AttribName: String; Default: TDateTime=0): TDateTime; Overload;
+function  GetDate(Item: IXMLNode; Default: TDateTime=0): TDateTime; Overload;
 
 function  GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
 function  GetBool(const sJSON: String; const FieldName: string): boolean; Overload;
 
-Procedure JSONRemove( var sJSON: String; const fields: array of string); overload;
-Procedure JSONRemove( var sJSON: String; const FieldName: String); overload;
-Procedure JSONRemove( oJSON: TJSONObject; const fields: array of string); overload;
+procedure JSONRemove( var sJSON: String; const fields: array of string); overload;
+procedure JSONRemove( var sJSON: String; const FieldName: String); overload;
+procedure JSONRemove( oJSON: TJSONObject; const fields: array of string); overload;
 
-Procedure SetStr(FT: TDataSet; const FieldName, Value: String); Overload;
-Procedure SetStr(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
-Procedure SetStr(LB: TStrings; Index, N: Integer; const St: String; CDiv: Char=ChDiv ); Overload;
+procedure SetStr(FT: TDataSet; const FieldName, Value: String); Overload;
+procedure SetStr(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
+procedure SetStr(LB: TStrings; Index, N: Integer; const St: String; CDiv: Char=ChDiv ); Overload;
 
-Procedure SetInt(FT: TDataSet; const FieldName: String; Value: Integer); Overload;
-Procedure SetInt(FT: TDataSet; const FieldName: String; Const Value: String); Overload;
-Procedure SetInt(Var StSource: String; Index: Integer; Value: Integer; CDiv: Char=ChDiv); Overload;
-Procedure SetInt(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
-Procedure SetInt(LB: TStrings; Index, N: Integer; Value: Integer; CDiv: Char=ChDiv); Overload;
-Procedure SetInt(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
+procedure SetInt(FT: TDataSet; const FieldName: String; Value: Integer); Overload;
+procedure SetInt(FT: TDataSet; const FieldName: String; Const Value: String); Overload;
+procedure SetInt(Var StSource: String; Index: Integer; Value: Integer; CDiv: Char=ChDiv); Overload;
+procedure SetInt(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
+procedure SetInt(LB: TStrings; Index, N: Integer; Value: Integer; CDiv: Char=ChDiv); Overload;
+procedure SetInt(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
 
-Procedure SetFloat(FT: TDataSet; const FieldName: String; Value: Double); Overload;
-Procedure SetFloat(FT: TDataSet; const FieldName: String; const Value: String); Overload;
-Procedure SetFloat(Var StSource: String; Index: Integer; Value: Double; CDiv: Char=ChDiv); Overload;
-Procedure SetFloat(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
-Procedure SetFloat(LB: TStrings; Index, N: Integer; Value: Double; CDiv: Char=ChDiv); Overload;
-Procedure SetFloat(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
+procedure SetFloat(FT: TDataSet; const FieldName: String; Value: Double); Overload;
+procedure SetFloat(FT: TDataSet; const FieldName: String; const Value: String); Overload;
+procedure SetFloat(Var StSource: String; Index: Integer; Value: Double; CDiv: Char=ChDiv); Overload;
+procedure SetFloat(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
+procedure SetFloat(LB: TStrings; Index, N: Integer; Value: Double; CDiv: Char=ChDiv); Overload;
+procedure SetFloat(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
 
-Procedure SetDate(FT: TDataSet; const FieldName: String; Value: TDateTime); Overload;
-Procedure SetDate(FT: TDataSet; const FieldName: String; const Value: String); Overload;
-Procedure SetDate(Var StSource: String; Index: Integer; Value: TDateTime; CDiv: Char=ChDiv); Overload;
-Procedure SetDate(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
-Procedure SetDate(LB: TStrings; Index, N: Integer; Value: TDateTime; CDiv: Char=ChDiv); Overload;
-Procedure SetDate(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
+procedure SetDate(FT: TDataSet; const FieldName: String; Value: TDateTime); Overload;
+procedure SetDate(FT: TDataSet; const FieldName: String; const Value: String); Overload;
+procedure SetDate(Var StSource: String; Index: Integer; Value: TDateTime; CDiv: Char=ChDiv); Overload;
+procedure SetDate(Var StSource: String; Index: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
+procedure SetDate(LB: TStrings; Index, N: Integer; Value: TDateTime; CDiv: Char=ChDiv); Overload;
+procedure SetDate(LB: TStrings; Index, N: Integer; const Value: String; CDiv: Char=ChDiv); Overload;
 
 procedure SetFlds( var sLine: String;
                    const fields: array of Integer;
@@ -139,10 +139,10 @@ procedure SetJSON( JSON: TJSONObject;
 
 procedure SaveLogFile(const sMessage: String);
 
-Function  GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
-Function  SetDefaultLine(MaxFields: Integer; Cdiv: Char=ChDiv): String;
+function  GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
+function  SetDefaultLine(MaxFields: Integer; Cdiv: Char=ChDiv): String;
 
-Procedure DiscountAmount( Var BolPor: String;
+procedure DiscountAmount( Var BolPor: String;
                           Var Porcentaje,
                               Descont: Double;
                               TotalF: Double;
@@ -189,8 +189,6 @@ procedure DecompressFile(const filename: String);
 function CreateTJSONValue(sJSON: String; aEncoding: TEncoding = nil): TJSONValue;
 function CreateTJSONObject(sJSON: String; aEncoding: TEncoding = nil): TJSONObject;
 function CreateTJSONArray(sJSON: String; aEncoding: TEncoding = nil): TJSONArray;
-function JSONArrayToObject(aJSON: TJSONValue; Index: Integer=0): TJSONObject; overload;
-function JSONArrayToObject(aJSON: String; Index: Integer=0): String; overload;
 
 function SetJSONResponse( iStatus: Integer;
                           const sMessage: string): TJSONObject; overload;
@@ -478,29 +476,6 @@ Begin
   if aEncoding=nil then
      aEncoding:=TEncoding.UTF8;
   Result:= TJSONObject.ParseJSONValue(aEncoding.GetBytes(sJSON), 0) as TJSONArray;
-End;
-
-function JSONArrayToObject(aJSON: TJSONValue; Index: Integer=0): TJSONObject;
-Begin
-  if Assigned(AJSON) Then
-     begin
-       If (AJSON Is TJSONArray) And (TJSONArray(AJSON).Count>0) then
-          Result:=TJSONArray(AJSON)[Index] As TJSONObject
-       else
-          Result:=TJSONObject.Create;
-     end
-  else
-     Result:=TJSONObject.Create;
-End;
-
-function JSONArrayToObject(aJSON: String; Index: Integer=0): String;
-var JArray: TJSONArray;
-Begin
-  JArray:=CreateTJSONArray(aJSON);
-  if Assigned(JArray) And (JArray.Count>0) then
-     Result:=JArray.Items[Index].ToJSON
-  else
-     Result:='{}';
 End;
 
 function OkVarRec(const AVarRec: TVarRec): Boolean;  overload;
@@ -1968,8 +1943,8 @@ Var
   sText: String;
 begin
   //-------------------------------------------
-  AssignFile(FLog, AppFileLogs);
-  if Not FileExists(AppFileLogs) then
+  AssignFile(FLog, App_FileLogs);
+  if Not FileExists(App_FileLogs) then
     Rewrite(FLog)
   else
     Append(FLog);
@@ -1982,18 +1957,17 @@ end;
 procedure GetApplicationPath(LocalPath: Boolean);
 var
    lPath,
-   AppName,
-   AppStationName: String;
+   lStationName: String;
 begin
-  AppStationName := GetEnvironmentVariable('COMPUTERNAME');
-  if AppName='' then
-     AppName := ChangeFileExt(ExtractFileName(paramstr(0)), ''); // Ohne Endung
+  lStationName := GetEnvironmentVariable('COMPUTERNAME');
+  if App_Name='' then
+     App_Name := ChangeFileExt(ExtractFileName(paramstr(0)), ''); // Ohne Endung
 {$IF DEFINED (Linux) or DEFINED (MACOS)}
   lPath := IncludeTrailingPathDelimiter(GetHomePath) + '.config/' +
-                   AppName + PathDelim;
+                   App_Name + PathDelim;
 {$ENDIF}
 {$IFDEF MSWINDOWS}
-  lPath := IncludeTrailingPathDelimiter(GetHomePath)+AppName+PathDelim;
+  lPath := IncludeTrailingPathDelimiter(GetHomePath)+App_Name+PathDelim;
 {$ENDIF}
 {$IF DEFINED(iOS) or DEFINED(ANDROID)}
   lPath := TPath.GetDocumentsPath+PathDelim;
@@ -2002,14 +1976,14 @@ begin
      begin
        lPath :=ExtractFilePath(paramstr(0));
      end;
-  AppPath:=lPath;
-  AppFileLogs:=lPath+'logs'+PathDelim+'logs.txt';
+  App_Path:=lPath;
+  App_FileLogs:=lPath+'logs'+PathDelim+'logs.txt';
 end;
 
 initialization
-  AppPath:='';
-  AppParams:='';
-  AppFileLogs:='';
+  App_Path:='';
+  App_Params:='';
+  App_FileLogs:='';
 
   GetApplicationPath(false);
 finalization

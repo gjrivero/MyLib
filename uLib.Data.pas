@@ -26,8 +26,6 @@ Const
   DB_PASSWORD_ERROR   = -8;
   DB_RECORD_INACTIVE  = -9;
 
-type
-  TSQLActionsValidate = (avNone,avAnalize,avCheckOnly,avSweep);
 
 function SqlWhere( pParams: TFDParams ): String; Overload;
 function SqlWhere( const fldNames:  Array of String;
@@ -36,20 +34,20 @@ function SqlWhere( const fldNames:  Array of String;
 function GetDataSet( const sQuery: String;
                            pParams: TFDParams=Nil): TDataSet;
 function GetData( const sQuery: String;
-                           pParams: TFDParams=Nil): TJSONArray; Overload;
+                           pParams: TFDParams=Nil): TJSONValue; Overload;
 function GetData( sQuery: TStrings;
-                  pParams: TFDParams=nil): TJSONArray; Overload;
+                  pParams: TFDParams=nil): TJSONValue; Overload;
 function GetData( const sQuery: String;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): TJSONArray; Overload;
+                  const fldValues: Array of const): TJSONValue; Overload;
 function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): TJSONArray; Overload;
+                  const fldValues: Array of const): TJSONValue; Overload;
 
 function GetData( const sTblName: String;
                   sfields: String;
                   sCondition: String='';
-                  sOrder: string=''): TJSONArray; overload;
+                  sOrder: string=''): TJSONValue; overload;
 
 function AddData( const dbTableName: String;
                         Context: TJSONValue): TJSONObject; Overload;
@@ -123,6 +121,8 @@ function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
 
 implementation
+
+{%CLASSGROUP 'FMX.Controls.TControl'}
 
 uses
     System.Variants,
@@ -1006,7 +1006,6 @@ var
    sFlds,
    lWhere,
    sOrderBy: String;
-   I,
    Page,
    Limit,
    PageSize: Integer;
@@ -1084,27 +1083,27 @@ begin
 end;
 
 function GetData( const sQuery: String;
-                  pParams: TFDParams=nil): TJSONArray; overload;
+                  pParams: TFDParams=nil): TJSONValue; overload;
 var
    DMC: TFDMController;
 begin
   DMC:=TFDMController.Create(dmMain);
   try
-    Result:=DMC.GetRecords(sQuery,pParams).AsJSONArray;
+    Result:=DMC.GetRecords(sQuery,pParams).AsJSONvalue;
   finally
     DMC.Destroy;
   end;
 end;
 
 function GetData( sQuery: TStrings;
-                  pParams: TFDParams=nil): TJSONArray; overload;
+                  pParams: TFDParams=nil): TJSONValue; overload;
 begin
   result:=GetData(sQuery.Text,pParams);
 end;
 
 function GetData( const sQuery: String;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): TJSONArray; overload;
+                  const fldValues: Array of const): TJSONValue; overload;
 Var
    pParams: TFDParams;
 begin
@@ -1118,7 +1117,7 @@ end;
 
 function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
-                  const fldValues: Array of const): TJSONArray; overload;
+                  const fldValues: Array of const): TJSONValue; overload;
 begin
   result:=GetData(sQuery.Text,fldNames,fldValues);
 end;
@@ -1126,7 +1125,7 @@ end;
 function GetData( const sTblName: String;
                   sfields: String;
                   sCondition: String='';
-                  sOrder: string=''): TJSONArray; overload;
+                  sOrder: string=''): TJSONValue; overload;
 var
   sQry: String;
 begin
@@ -1359,7 +1358,7 @@ begin
       '  FROM pg_catalog.pg_database'+
       ' WHERE {lcase(datname)} = {lcase('+QuotedStr(nameDB) +')};';
   end;
-  JSON:=JSONArrayToObject(GetData(SQry));
+  JSON:=GetData(SQry) As TJSONObject;
   result:=false;
   if (JSON<>Nil) And Assigned(JSON) then
      result:=GetInt(JSON,'db_exists')>0;

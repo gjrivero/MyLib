@@ -5,7 +5,7 @@ object dmMain: TdmMain
   Width = 400
   object Cnx: TFDConnection
     Params.Strings = (
-      'Pooled=True')
+      'DriverID=SQLite')
     ResourceOptions.AssignedValues = [rvParamCreate, rvMacroCreate, rvMacroExpand, rvParamExpand, rvEscapeExpand, rvKeepConnection]
     LoginPrompt = False
     BeforeConnect = CnxBeforeConnect
@@ -41,6 +41,11 @@ object dmMain: TdmMain
   object SQLiteValidate: TFDSQLiteValidate
     DriverLink = SQLiteDriver
     Left = 64
+    Top = 136
+  end
+  object SQLiteSecurity: TFDSQLiteSecurity
+    DriverLink = SQLiteDriver
+    Left = 288
     Top = 136
   end
 end

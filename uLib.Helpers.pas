@@ -474,17 +474,33 @@ end;
 function TDataSetHelper.AsJSONvalue(AReturnNilIfEOF: boolean = false): TJSONValue;
 var
   JObj: TJSONObject;
+  JArr: TJSONArray;
 begin
-  JObj := TJSONObject.Create;
-  try
-    DataSetToJSONObject(Self, JObj, false);
-    if AReturnNilIfEOF and (JObj.Count = 0) then
-      FreeAndNil(JObj);
-    Result := JObj.AsType<TJSONValue>;
-  except
-    FreeAndNil(JObj);
-    raise;
-  end;
+  if Self.RecordCount>1 then
+     begin
+       JArr := TJSONArray.Create;
+       try
+         if not Eof then
+            DataSetToJSONArray(Self, JArr, false);
+         Result := JArr.AsType<TJSONValue>;
+       except
+         FreeAndNil(JArr);
+         raise;
+       end;
+     end
+  else
+     begin
+       JObj := TJSONObject.Create;
+       try
+         DataSetToJSONObject(Self, JObj, false);
+         if AReturnNilIfEOF and (JObj.Count = 0) then
+            FreeAndNil(JObj);
+         Result := JObj.AsType<TJSONValue>;
+       except
+         FreeAndNil(JObj);
+         raise;
+       end;
+     end;
 end;
 
 function TDataSetHelper.AsJSONObjectString(AReturnNilIfEOF: boolean = false): String;

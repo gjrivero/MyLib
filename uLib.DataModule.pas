@@ -35,6 +35,7 @@ type
     Cmd: TFDCommand;
     SQLiteDriver: TFDPhysSQLiteDriverLink;
     SQLiteValidate: TFDSQLiteValidate;
+    SQLiteSecurity: TFDSQLiteSecurity;
     procedure DataModuleCreate(Sender: TObject);
     procedure DataModuleDestroy(Sender: TObject);
     procedure CnxBeforeConnect(Sender: TObject);
@@ -58,6 +59,8 @@ var
 
 implementation
 
+{%CLASSGROUP 'FMX.Controls.TControl'}
+
 {$R *.dfm}
 
 uses
@@ -68,6 +71,7 @@ begin
   Cnx.Params.Text:=ADatabaseServer.Text;
   Cnx.DriverName:=ADatabaseServer.Values['DriverId'];
   RDBMSKind:=Cnx.RDBMSKind;
+
   case Cnx.RDBMSKind of
     TFDRDBMSKinds.SQLite:
       begin
