@@ -7,7 +7,7 @@ uses
    FireDAC.Stan.Intf;
 
 const
-   SS_USER        = 'user';
+   SS_USER_NAME   = 'user_name';
    SS_ROLE        = 'role';
    SS_PASSWORD    = 'password';
    SS_VALID       = 'valid';

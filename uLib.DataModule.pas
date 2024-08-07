@@ -8,6 +8,7 @@ uses
   Data.DB,
   Data.DBXPlatform,
   System.Generics.Collections,
+  siComp,
 
   FireDAC.Stan.ExprFuncs,
   FireDAC.Stan.Intf, FireDAC.Stan.Option,
@@ -15,8 +16,7 @@ uses
   FireDAC.Stan.Pool, FireDAC.Stan.Async, FireDAC.Phys, FireDAC.ConsoleUI.Wait,
   FireDAC.Stan.Param, FireDAC.DatS, FireDAC.DApt.Intf, FireDAC.DApt,
   FireDAC.Comp.Client, FireDAC.Comp.DataSet, FireDAC.Comp.UI,
-  FireDAC.Phys.SQLiteWrapper.Stat, FireDAC.Phys.SQLiteDef, FireDAC.Phys.SQLite,
-  siComp
+  FireDAC.Phys.SQLiteWrapper.Stat, FireDAC.Phys.SQLiteDef, FireDAC.Phys.SQLite
 {$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
   ,FireDAC.Phys.MSSQL
   ,FireDAC.Phys.MSSQLDef
@@ -39,7 +39,7 @@ type
     SQLiteDriver: TFDPhysSQLiteDriverLink;
     SQLiteValidate: TFDSQLiteValidate;
     SQLiteSecurity: TFDSQLiteSecurity;
-    siLangDispatcher1: TsiLangDispatcher;
+    siLangDispatcher: TsiLangDispatcher;
     siLang_dmMain: TsiLang;
     procedure DataModuleCreate(Sender: TObject);
     procedure DataModuleDestroy(Sender: TObject);

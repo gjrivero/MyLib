@@ -184,7 +184,7 @@ begin
        UserRoles.Add(sRole);
        Session := TDSSessionManager.GetThreadSession;
        SetValue(Session,SS_SESSIONID, Session.SessionName);
-       SetValue(Session,SS_USER, AUser);
+       SetValue(Session,SS_USER_NAME, AUser);
        SetValue(Session,SS_ROLE, sRole);
        SetValue(Session,SS_DEVELOPID, GetStr(aJSON,SS_DEVELOPID));
        SetValue(Session,SS_APPID, GetStr(aJSON,SS_APPID));
@@ -247,11 +247,11 @@ begin
           APassword.IsEmpty and
           ContainsText(JSONBody,'user') then
           SetJSON( Credentials,
-                   [ SS_USER, SS_PASSWORD],
+                   [ SS_USER_NAME, SS_PASSWORD],
                    [ GetStr(JSONBody,'user'),
                      GetStr(JSONBody,'password')]);
      end;
-  AUser:=GetStr(Credentials,SS_USER);
+  AUser:=GetStr(Credentials,SS_USER_NAME);
   APassword:=GetStr(Credentials,SS_PASSWORD);
   TokenParam:=false;
   if AUser.IsEmpty And APassword.IsEmpty then
@@ -270,7 +270,7 @@ begin
             sToken:=TNetEncoding.Base64.Decode(sToken);
             AUser:=GetStr(sToken,1,':');
             APassword:=GetStr(sToken,2,':');
-            SetJSON(Credentials,[SS_USER],[AUser]);
+            SetJSON(Credentials,[SS_USER_NAME],[AUser]);
             SetJSON(Credentials,[SS_PASSWORD],[APassword]);
             TokenParam:=True;
           end;
