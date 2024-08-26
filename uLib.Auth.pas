@@ -176,7 +176,7 @@ begin
          aJSON:=OtherActions(Base_Url.ToLower,Action,Method);
   end;
   valid:=GetBool(aJSON,SS_VALID);
-  if Valid then
+  if Valid And (Action<>ACT_DIAGNOSTIC) then
      begin
        var sRole:=GetStr(aJSON,SS_ROLE);
        if sRole='' then

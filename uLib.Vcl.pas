@@ -41,6 +41,9 @@ uses
     Vcl.Controls,
     Vcl.ComCtrls,
     Vcl.DBGrids,
+    Vcl.Graphics,
+    System.Math,
+    WinApi.Windows,
     Data.DB;
 
 
@@ -241,6 +244,76 @@ begin
             AColumn.Width:=AColumn.Tag;}
        end;
   end;
+end;
+
+// Función auxiliar para obtener la luminancia relativa de un color
+function GetRelativeLuminance(Color: TColor): Double;
+var
+  R, G, B: Byte;
+begin
+  Color := ColorToRGB(Color);
+  R := GetRValue(Color);
+  G := GetGValue(Color);
+  B := GetBValue(Color);
+
+  Result := (0.2126 * Power(R/255, 2.2)) +
+            (0.7152 * Power(G/255, 2.2)) +
+            (0.0722 * Power(B/255, 2.2));
+end;
+
+// Función auxiliar para calcular el contraste entre dos colores
+function CalculateContrast(Color1, Color2: TColor): Double;
+var
+  L1, L2: Double;
+begin
+  L1 := GetRelativeLuminance(Color1);
+  L2 := GetRelativeLuminance(Color2);
+
+  if L1 > L2 then
+    Result := (L1 + 0.05) / (L2 + 0.05)
+  else
+    Result := (L2 + 0.05) / (L1 + 0.05);
+end;
+
+function InvertColor(BackgroundColor: TColor): TColor;
+var
+  R, G, B: Byte;
+  Luminance: Double;
+  BrightColor,
+  DarkColor: TColor;
+begin
+  // Convertir el color del sistema a RGB
+  BackgroundColor := ColorToRGB(BackgroundColor);
+
+  // Extraer los componentes RGB
+  R := GetRValue(BackgroundColor);
+  G := GetGValue(BackgroundColor);
+  B := GetBValue(BackgroundColor);
+
+  // Calcular la luminancia percibida
+  // Usando la fórmula de luminancia relativa: https://www.w3.org/TR/WCAG20/#relativeluminancedef
+  Luminance := (0.2126 * Power(R/255, 2.2)) +
+               (0.7152 * Power(G/255, 2.2)) +
+               (0.0722 * Power(B/255, 2.2));
+
+  // Determinar los colores claros y oscuros basados en el brillo del fondo
+  if Luminance > 0.5 then
+  begin
+    BrightColor := BackgroundColor;
+    DarkColor := RGB(0, 0, 0);  // Negro
+  end
+  else
+  begin
+    BrightColor := RGB(255, 255, 255);  // Blanco
+    DarkColor := BackgroundColor;
+  end;
+
+  // Calcular el contraste y elegir el color con mayor contraste
+  if CalculateContrast(BackgroundColor, BrightColor) >
+     CalculateContrast(BackgroundColor, DarkColor) then
+    Result := BrightColor
+  else
+    Result := DarkColor;
 end;
 
 end.
