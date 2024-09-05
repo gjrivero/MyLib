@@ -166,8 +166,9 @@ type
                               pParams: TFDParams=nil): TDataSet;
 
     function execTrans( cSQL, sDecl: TStringList;
-                        sFields: String;
-                        pParams: TFDParams): TJSONValue;
+                         sFields: String;
+                         pParams: TFDParams;
+                         var iError: integer): TJSONArray;
 
     procedure SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
   public
@@ -620,14 +621,15 @@ end;
 
 function TFDMController.execTrans( cSQL, sDecl: TStringList;
                          sFields: String;
-                         pParams: TFDParams): TJSONValue;
+                         pParams: TFDParams;
+                         var iError: integer): TJSONArray;
 var
    cCmd: TStringList;
    I: Integer;
    OkArray: Boolean;
 begin
   OkArray:=False;
-  If not ContainsText(sFields,'SELECT ') then
+  If ContainsText(sFields,'SELECT ') then
      OkArray:=ContainsText(sFields,' FROM ');
   cCmd:=TStringList.Create;
   SetHeader(cCmd,true);
@@ -654,7 +656,6 @@ begin
    TFDRDBMSKinds.MySQL:
      begin
        cCmd.Add('SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;');
-       cCmd.Add('DECLARE @Error INT DEFAULT 0;');
        if sDecl<>Nil then
           cCmd.AddStrings(sDecl);
        cCmd.Add('START TRANSACTION;');
@@ -664,7 +665,6 @@ begin
        cCmd.Add('DECLARE');
        if sDecl<>Nil then
           cCmd.AddStrings(sDecl);
-       cCmd.Add('  _error INTEGER DEFAULT 0;');
        cCmd.Add('BEGIN');
        cCmd.Add('  BEGIN;');
      end;
@@ -681,7 +681,8 @@ begin
        if OkArray then
           cCmd.Add('  '+sFields)
        else
-          cCmd.Add('  SELECT 0 error'+ifThen(sFields<>'',', '+sFields,';'));
+          if sFields<>'' then
+             cCmd.Add('  SELECT '+sFields+';');
        cCmd.Add('END TRY');
        cCmd.Add('BEGIN CATCH');
        cCmd.Add('  IF (@@TRANCOUNT>0)');
@@ -694,7 +695,8 @@ begin
        cCmd.Add('     @ErrorLine = ERROR_LINE();');
        cCmd.Add('  SET @ErrMsg = @ErrMsg+Char(13)+');
        cCmd.Add('      ''Line: ''+Cast(@ErrorLine As Varchar(10));');
-       cCmd.Add('  SELECT -1 error, @ErrMsg errmsg, @ErrorSeverity errseverity;');
+       cCmd.Add('  SELECT @ErrMsg errmsg, @ErrorNumber errornumber,');
+       cCmd.Add('         @ErrorLine errorline, @ErrorSeverity errseverity;');
        cCmd.Add('END CATCH;');
      end;
    TFDRDBMSKinds.MySQL:
@@ -706,7 +708,7 @@ begin
        cCmd.Add('ELSE');
        cCmd.Add('  COMMIT;');
        cCmd.Add('END IF;');
-       cCmd.Add('SELECT @Error error'+ifThen(sFields<>'',', '+sFields,'')+';');
+       cCmd.Add('SELECT '+sFields+';');
      end;
    TFDRDBMSKinds.PostgreSQL:
      begin
@@ -717,7 +719,7 @@ begin
        cCmd.Add('  ELSE');
        cCmd.Add('    COMMIT;');
        cCmd.Add('  END IF;');
-       cCmd.Add('  SELECT _error error'+ifThen(sFields<>'',', '+sFields,'')+';');
+       cCmd.Add('  SELECT '+sFields+';');
        cCmd.Add('END;');
      end;
   end;
@@ -738,16 +740,21 @@ begin
     if OkArray then
        Result:=FDM.Qry.AsJSONArray
     else
-       Result:=FDM.Qry.AsJSONObject;
+       begin
+         Result:=TJSONArray.Create;
+         Result.Add(FDM.Qry.AsJSONObject);
+       end;
     //if Not aCommit then
     FDM.Cnx.Commit;
+    iError:=0;
   except
-   on E: EFDDBEngineException do  begin
-           //if Not aCommit then
-           FDM.Cnx.Rollback;
-           SaveLogFile(FDM.Qry.SQL.Text);
-           raise Exception.Create(E.Message);
-         end;
+   on E: EFDException do begin
+         iError:=-1;
+         //if Not aCommit then
+         FDM.Cnx.Rollback;
+         Result:=CreateTJSONArray('[{"error":"'+E.Message+'"}]');
+         SaveLogFile(FDM.Qry.SQL.Text);
+   end;
   End;
   cCmd.Destroy;
 End;
@@ -757,8 +764,9 @@ Var
   sCmd,
   Dcl: TStringList;
   AJSON: TJSONArray;
+  AValue: TJSONValue;
   fldsReturn: String;
-  I: Integer;
+  I,error: Integer;
 begin
   sCmd:=TStringList.create;
   Dcl:=TStringList.create;
@@ -790,7 +798,9 @@ begin
        begin
          sCmd.Add(sqlInsert(dbTableName,Context,fldsReturn));
        end;
-    result:= execTrans(sCmd,Dcl,fldsReturn,nil);
+    AValue:=execTrans(sCmd,Dcl,fldsReturn,nil,error);
+    TJSONObject(result).AddPair('status',Error);
+    TJSONObject(result).AddPair('response',AValue);
   finally
     sCmd.Destroy;
     Dcl.Destroy;
@@ -803,10 +813,11 @@ Var
   sCmd: TStringList;
   AJSON: TJSONArray;
   oJSON: TJSOnObject;
+  AValue,
   lValue: TJSONValue;
   sWhere,
   fldsReturn: String;
-  I: Integer;
+  I,error: Integer;
 begin
   sCmd:=TStringList.create;
   try
@@ -836,7 +847,9 @@ begin
        begin
          sCmd.Add(sqlUpdate(dbTableName,Context,Condition));
        end;
-    result:=execTrans(sCmd,Nil,fldsReturn,Nil);
+    AValue:=execTrans(sCmd,Nil,fldsReturn,Nil,error);
+    TJSONObject(result).AddPair('status',Error);
+    TJSONObject(result).AddPair('response',AValue);
   finally
     sCmd.Destroy;
   end;
@@ -845,12 +858,16 @@ End;
 function TFDMController.cmdDel(Const dbTableName, sWhere: String): TJSONObject;
 Var
    sCmd: TStringList;
+   error: Integer;
+   AValue: TJSONValue;
 begin
   sCmd:=TStringList.create;
   try
     sCmd.Add('DELETE FROM '+dbTableName);
     sCmd.Add(' WHERE '+sWhere+';');
-    result:=execTrans(sCmd,Nil,'',Nil) As TJSONObject;
+    AValue:=execTrans(sCmd,Nil,'',Nil,error);
+    TJSONObject(result).AddPair('status',Error);
+    TJSONObject(result).AddPair('response',AValue);
   finally
     sCmd.Destroy;
   end;
@@ -864,7 +881,7 @@ begin
   FDM.Qry.SQL.Clear;
   FDM.Qry.SQL.Assign(aHeader);
   FDM.Qry.SQL.Add(sQuery);
-  if pParams<>Nil then
+  if (pParams<>Nil) then
      begin
        FDM.Qry.Params:=pParams;
        FDM.Qry.Prepare;
@@ -1250,8 +1267,12 @@ Var
    DMC: TFDMController;
    Cmd,
    Dcl: TStringList;
+   Error: Integer;
+   AValue: TJSONValue;
 begin
   DMC:=TFDMController.Create(dmMain);
+  Result:=TJSONObject.Create;
+
   Cmd:=TStringList.Create;
   Cmd.Text:=cSQL;
   Dcl:=Nil;
@@ -1261,7 +1282,9 @@ begin
        Dcl.Text:=sDecl;
      end;
   try
-    result:=DMC.execTrans(Cmd, Dcl, sFields, pParams) As TJSONObject;
+    AValue:=DMC.execTrans(Cmd, Dcl, sFields, pParams, Error);
+    result.AddPair('status',Error);
+    result.AddPair('response',AValue);
   finally
     DMC.Destroy;
     Cmd.Destroy;
@@ -1276,10 +1299,15 @@ function ExecTransact( cSQL: TStringList;
                        pParams: TFDParams=nil): TJSONObject;
 Var
    DMC: TFDMController;
+   AValue: TJSONValue;
+   Error: Integer;
 begin
   DMC:=TFDMController.Create(dmMain);
+  Result:=TJSONObject.Create;
   try
-    result:=DMC.execTrans(cSQL, sDecl, sFields, pParams) As TJSONObject;
+    AValue:=DMC.execTrans(cSQL, sDecl, sFields, pParams, Error);
+    result.AddPair('status',Error);
+    result.AddPair('response',AValue);
   finally
     DMC.Destroy;
   end;
@@ -1296,7 +1324,7 @@ begin
   DMC:=TFDMController.Create(dmMain);
   Result:=TJSONObject.Create;
   try
-    result.AddPair('result',DMC.cmdExecute(sCommands,pParams,aCommit));
+    result.AddPair('response',DMC.cmdExecute(sCommands,pParams,aCommit));
   finally
     DMC.Destroy;
   end;
@@ -1323,7 +1351,7 @@ begin
   pParams:=setFDParams(fldNames,fldValues);
   Result:=TJSONObject.Create;
   try
-    result.AddPair('result',DMC.cmdExecute(sCommands,pParams,aCommit));
+    result.AddPair('response',DMC.cmdExecute(sCommands,pParams,aCommit));
   finally
     pParams.Destroy;
     DMC.Destroy;

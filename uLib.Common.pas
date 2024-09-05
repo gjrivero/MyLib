@@ -26,7 +26,8 @@ const
    SS_EMAIL       = 'email';
    SS_PHONE       = 'phone';
    SS_BRANCH      = 'branch';
-   SS_TOKENID     = 'tokenId';
+   SS_LEVEL       = 'level';
+   SS_TOKENID     = 'token_id';
    SS_SESSIONID   = 'session_id';
 
    ROLE_ADMIN     = 'admin';

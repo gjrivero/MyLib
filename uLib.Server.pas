@@ -163,40 +163,7 @@ procedure TServerLocalEvents.OnParseAuthentication(
           const AAuthType, AAuthData: String;
           var VUsername, VPassword: String;
           var VHandled: Boolean);
-var
-  S,
-  aData,
-  SessionId,
-  AuthValue: String;
-  TS: TStringList;
 begin
-(*
-  if SameText(AAuthType, 'Bearer') then
-  begin
-    AuthValue := AAuthData;
-    if VerifyToken(MY_SECRET,AuthValue,aData) then
-       begin
-         var tSub:=GetStr(aData,'sub');
-         var LConn := AContext.Connection;
-         SessionId:=GetStr(tSub,SS_SESSIONID);
-         var Pragma:='dssession='+SessionId+',dssessionexpires=120000';
-         {
-            'SID',
-            'dssession='+SessionId+',dssessionexpires=120000');
-         }
-         TS:=TStringList.create;
-         TS.addPair('Pragma',Pragma);
-         LConn.WriteHeader(TS);
-         Var I:=TDSSessionManager.Instance.GetSessionCount;
-         TDSSessionManager.Instance.GetOpenSessionKeys(TS);
-
-         aData:=TS.Text;
-         TS.Free;
-         VUsername:='001';
-         VHandled:=True;
-       end;
-  end;
-*)
 end;
 
 procedure TServerLocalEvents.OnQuerySSLPort(APort: TIdPort; var AUseSSL: Boolean);
@@ -204,56 +171,6 @@ begin
   AUseSSL := True;
 end;
 
-(*
-function TServerLocalEvents.VerifyToken( const My_Secret, AuthValue: String;
-                                         var aData: string): Boolean;
-var
-  LToken: TJWT;
-begin
-  aData := '';
-  Result := False;
-  // Unpack and verify the token
-  LToken := TJOSE.Verify(MY_SECRET, AuthValue);
-  if Assigned(LToken) then
-  begin
-    try
-      Result := LToken.Verified;
-      aData := LToken.Claims.JSON.ToString;
-    finally
-      LToken.Free;
-    end;
-  end;
-end;
-
-function TServerLocalEvents.VerifyTokenComplete( const My_Secret, AuthValue: String;
-                                                 var aData: string): Boolean;
-var
-  LKey: TJWK;
-  LToken: TJWT;
-  LSigner: TJWS;
-begin
-  aData:='';
-  LKey := TJWK.Create(MY_SECRET);
-  try
-    LToken := TJWT.Create;
-    try
-      LSigner := TJWS.Create(LToken);
-      try
-        LSigner.SetKey(LKey);
-        LSigner.CompactToken := AuthValue;
-
-        Result := LSigner.VerifySignature;
-      finally
-        LSigner.Free;
-      end;
-    finally
-      LToken.Free;
-    end;
-  finally
-    LKey.Free;
-  end;
-end;
-*)
 { TIdHTTPWebBrokerServer }
 
 procedure TerminateThreads;
@@ -378,8 +295,7 @@ function TIdHTTPWebBrokerServer.LoadConnectionSettings(
               Crypted: Boolean): String;
 var
   tJSON: TJSONArray;
-  aJSON,
-  PathData: String;
+  aJSON: String;
   lAppSettings: String;
 begin
   // -----------------------------------------------
