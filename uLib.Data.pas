@@ -724,7 +724,7 @@ begin
      end;
   end;
 {$IFDEF DEBUG}
-  //cCmd.SaveToFile('trans.txt');
+  cCmd.SaveToFile('trans.txt');
 {$ENDIF}
   FDM.Qry.SQL.Clear;
   FDM.Qry.SQL.Assign(cCmd);
@@ -1106,7 +1106,7 @@ var
 begin
   DMC:=TFDMController.Create(dmMain);
   try
-    Result:=DMC.GetRecords(sQuery,pParams).AsJSONvalue;
+    result:=DMC.GetRecords(sQuery,pParams).AsJSONvalue;
   finally
     DMC.Destroy;
   end;

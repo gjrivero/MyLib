@@ -31,7 +31,7 @@ Const
 
 Type
    TRandAttributes = (rdAllChar, rdAlpha, rdNumber, rdEspecial );
-   TDateTimeMode = (dtNone, dtBegin, dtEnd);
+   TDateTimeMode = (dtNone, dtNow, dtBegin, dtEnd);
 
 var
    App_Name,
@@ -453,8 +453,6 @@ end;
 
 function CreateTJSONObject(sJSON: String; aEncoding: TEncoding = nil): TJSONObject;
 Begin
-  if sJSON.IsEmpty then
-     sJSON:='{}';
   if aEncoding=nil then
      aEncoding:=TEncoding.UTF8;
   Result:= TJSONObject.ParseJSONValue(aEncoding.GetBytes(sJSON), 0) as TJSONObject;
@@ -462,8 +460,6 @@ End;
 
 function CreateTJSONvalue(sJSON: String; aEncoding: TEncoding = nil): TJSONValue;
 Begin
-  if sJSON.IsEmpty then
-     sJSON:='{}';
   if aEncoding=nil then
      aEncoding:=TEncoding.UTF8;
   Result:= TJSONObject.ParseJSONValue(aEncoding.GetBytes(sJSON), 0) as TJSONValue;
@@ -471,8 +467,6 @@ End;
 
 function CreateTJSONArray(sJSON: String; aEncoding: TEncoding = nil): TJSONArray;
 Begin
-  if sJSON.IsEmpty then
-     sJSON:='[]';
   if aEncoding=nil then
      aEncoding:=TEncoding.UTF8;
   Result:= TJSONObject.ParseJSONValue(aEncoding.GetBytes(sJSON), 0) as TJSONArray;
@@ -931,6 +925,8 @@ procedure SetJSON( var sJSON: String;
 var
    JSON: TJSONObject;
 begin
+  if sJSON='' then
+     sJSON:='{}';
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
@@ -947,6 +943,8 @@ procedure SetJSON( var sJSON: PChar;
 var
    JSON: TJSONObject;
 begin
+  if sJSON='' then
+     sJSON:='{}';
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
@@ -980,7 +978,7 @@ begin
   result:=dt;
 end;
 
-Function DeleteLastChar(const S: String; ch: Char): String;
+function DeleteLastChar(const S: String; ch: Char): String;
 Var St: String;
 Begin
   St:=S;
@@ -1141,6 +1139,7 @@ begin
   fs.DateSeparator := '-';
   case Mode of
    dtNone: ;
+   dtNow:   Date:= Trunc(Date)+Frac(Now());
    dtBegin: Date:= Trunc(Date);
    dtEnd:   Date:= Trunc(Date)+Frac(EndOfTheDay(Date));
   end;

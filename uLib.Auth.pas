@@ -150,7 +150,8 @@ var
 begin
   errorMsg:='Invalid invocation!';
   Action:=GetAction(Base_Url.ToLower,aMainPath,Method);
-  aResp:='';
+  aResp:='{}';
+  aJSON:='{}';
   SetJSON(aResp,[SS_VALID],[false]);
   SetJSON(aJSON,[SS_VALID],[false]);
   if Not TokenParam And (action=ACT_DEFAULT) then
