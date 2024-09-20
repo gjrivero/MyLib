@@ -500,10 +500,10 @@ begin
 end;
 
 procedure TFDMController.SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
+{$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
 Var
   userId,
   userName: String;
-{$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
   Session: TDSSession;
 {$ENDIF}
 begin

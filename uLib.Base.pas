@@ -137,6 +137,30 @@ procedure SetJSON( JSON: TJSONObject;
                    const fields: array of string;
                    const values: array of const); overload;
 
+procedure SetJSONValue( aJSON: TJSONObject;
+                        const fields: array of string;
+                        const Values: array Of const); overload;
+procedure SetJSONValue( var aJSON: string;
+                        const fields: array of string;
+                        const Values: Array Of Const); overload;
+procedure SetJSONValue( AJSON: TJSONObject;
+                        const AName: String;
+                        BJSON: TJSONObject;
+                        APath: String=''); overload;
+procedure SetJSONValue( AJSON: TJSONObject;
+                        const AName: string;
+                        BJSON: string;
+                        APath: String=''); overload;
+procedure SetJSONValue( var AJSON: String;
+                        AName: String;
+                        BJSON: TJSONObject;
+                        APath: String=''); overload;
+
+procedure SetJSONValue( var AJSON: String;
+                        const AName, BJSON: string;
+                        APath: String=''); overload;
+
+
 procedure SaveLogFile(const sMessage: String);
 
 function  GetMaxFields(const fields: String; Cdiv: Char=ChDiv): Integer;
@@ -952,6 +976,130 @@ begin
        //sJSON:=JSON.Format(JSONIndent);
        sJSON:=PChar(JSON.ToJSON);
        JSON.Destroy;
+     end;
+end;
+
+procedure SetJSONValue( aJSON: TJSONObject;
+                        const fields: array of string;
+                        const Values: array Of const); overload;
+var
+   i: Integer;
+   S: String;
+begin
+  for I := Low(fields) to High(fields) do
+   begin
+     var field:=fields[I];
+     if aJSON.FindValue(field)=nil then
+        case Values[I].VType of
+         vtBoolean:
+           aJSON.AddPair(field, TJSONBool.Create(Values[I].VBoolean));
+         vtObject:
+           aJSON.AddPair(field, (Values[I].VObject As TJSONValue));
+         vtInt64:
+           aJSON.AddPair(field, Values[I].VInt64^);
+         vtInteger:
+           aJSON.AddPair(field, Values[I].VInteger);
+         vtExtended,
+         vtCurrency:
+           aJSON.AddPair(field, Values[I].VExtended^);
+         else
+           if (Values[I].VType = vtVariant) then
+              aJSON.AddPair(field, TJSONNull.Create)
+           else
+              begin
+                S:=AssignVal(Values[I]).DeQuotedString;
+                if (S.StartsWith('{') or S.StartsWith('[')) then
+                   aJSON.AddPair(field,CreateTJSONValue(S))
+                else
+                   aJSON.AddPair(field,S);
+              end;
+        end;
+   end;
+end;
+
+procedure SetJSONValue( var aJSON: string;
+                        const fields: array of string;
+                        const Values: Array Of Const); overload;
+var
+   JSON: TJsonObject;
+begin
+  if aJSON='' then
+     aJSON:='{}';
+  JSON:=CreateTJSONObject(aJSON);
+  if JSON<>Nil then
+     begin
+       SetJSONValue(JSON,fields,values);
+       aJSON:=JSON.ToJSON;
+       JSON.Free;
+     end;
+end;
+
+procedure SetJSONValue( AJSON: TJSONObject;
+                        const AName: String;
+                        BJSON: TJSONObject;
+                        APath: String=''); overload;
+begin
+  if APath='' then
+     APath:=AName;
+  if (AJSON.FindValue(AName)=Nil) and
+     (BJSON.FindValue(APath)<>Nil) then
+     AJSON.AddPair(APath,BJSON.GetValue(APath));
+end;
+
+procedure SetJSONValue( AJSON: TJSONObject;
+                        const AName: string;
+                        BJSON: string;
+                        APath: String=''); overload;
+var
+   JSON: TJSONObject;
+begin
+  if APath='' then
+     APath:=AName;
+  if bJSON='' then
+     exit;
+
+  JSON:=CreateTJSONObject(BJSON);
+  if JSON<>Nil then
+     begin
+       if (AJSON.FindValue(AName)=Nil) and
+          (JSON.FindValue(APath)<>Nil) then
+          AJSON.AddPair(APath,JSON.GetValue(APath));
+       JSON.Free;
+     end;
+end;
+
+procedure SetJSONValue( var AJSON: String;
+                        AName: String;
+                        BJSON: TJSONObject;
+                        APath: String=''); overload;
+var
+   JSON: TJSONObject;
+begin
+  if AJSON='' then
+     AJSON:='{}';
+  JSON:=CreateTJSONObject(AJSON);
+  if JSON<>Nil then
+     begin
+       SetJSONValue(JSON,AName,BJSON,APath);
+       AJSON:=JSON.ToString;
+       JSON.Free;
+     end;
+end;
+
+procedure SetJSONValue( var AJSON: String;
+                        const AName, BJSON: string;
+                        APath: String=''); overload;
+var
+   JSON: TJSONObject;
+begin
+  if AJSON='' then
+     AJSON:='{}';
+  JSON:=CreateTJSONObject(AJSON);
+  if JSON<>Nil then
+     begin
+       SetJSONValue(JSON,AName,BJSON,APath);
+       AJSON:=JSON.ToString;
+       JSON.Free;
      end;
 end;
 
