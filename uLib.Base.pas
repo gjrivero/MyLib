@@ -129,37 +129,55 @@ procedure SetFlds( var sLine: String;
 
 procedure SetJSON( Var sJSON: String;
                    const fields: array of string;
-                   const values: array of const); overload;
+                   const values: array of const;
+                   findExist: boolean=false); overload;
 procedure SetJSON( var sJSON: PChar;
                     const fields: array of string;
-                    const values: array of const); overload;
+                    const values: array of const;
+                   findExist: boolean=false); overload;
 procedure SetJSON( JSON: TJSONObject;
                    const fields: array of string;
-                   const values: array of const); overload;
+                   const values: array of const;
+                   findExist: boolean=false); overload;
 
 procedure SetJSONValue( aJSON: TJSONObject;
                         const fields: array of string;
                         const Values: array Of const); overload;
 procedure SetJSONValue( var aJSON: string;
                         const fields: array of string;
-                        const Values: Array Of Const); overload;
+                        const Values: Array Of const); overload;
+
 procedure SetJSONValue( AJSON: TJSONObject;
                         const AName: String;
                         BJSON: TJSONObject;
                         APath: String=''); overload;
 procedure SetJSONValue( AJSON: TJSONObject;
                         const AName: string;
-                        BJSON: string;
+                        const BJSON: string;
                         APath: String=''); overload;
+
 procedure SetJSONValue( var AJSON: String;
                         AName: String;
                         BJSON: TJSONObject;
                         APath: String=''); overload;
-
 procedure SetJSONValue( var AJSON: String;
-                        const AName, BJSON: string;
+                        AName: String;
+                        const BJSON: string;
                         APath: String=''); overload;
 
+
+procedure SetJSONValue( aJSON, bJSON: TJSONObject;
+                        const fields: array of string); overload;
+procedure SetJSONValue( aJSON: TJSONObject;
+                        const bJSON: string;
+                        const fields: array of string); overload;
+
+procedure SetJSONValue( var aJSON: string;
+                        bJSON: TJSONObject;
+                        const fields: array of string); overload;
+procedure SetJSONValue( var aJSON: string;
+                        const bJSON: string;
+                        const fields: array of string); overload;
 
 procedure SaveLogFile(const sMessage: String);
 
@@ -258,6 +276,9 @@ implementation
 
 uses
     System.IOUtils
+   ,System.JSON.Types
+   ,System.JSON.Writers
+   ,System.JSON.Readers
    ,System.Zlib
    ,System.Math
    ,System.RegularExpressions
@@ -536,6 +557,10 @@ begin
   for L := 0 to JSON.Count-1 do
    begin
      field:=JSON.Pairs[L].JsonString.Value.ToLower;
+     case RDBMSKind of
+      TFDRDBMSKinds.MSSQL:
+        field:='['+field+']';
+     end;
      Value:=JSON.Pairs[L].JsonValue.ToString;
      if Value.StartsWith('"') then
         begin
@@ -580,16 +605,23 @@ end;
 
 procedure GetFieldsValues( pParams: TFDParams;
                            var sFields, sValues, sSetVal: string);
-Var I: Integer;
+Var
+  I: Integer;
+  field: string;
 begin
   sFields:='';
   sValues:='';
   sSetVal:='';
   for I := 0 to pParams.count-1 do
     begin
-      sFields:=sFields+','+pParams[I].Name;
+      field:=pParams[I].Name;
+      case RDBMSKind of
+       TFDRDBMSKinds.MSSQL:
+         field:='['+field+']';
+      end;
+      sFields:=sFields+','+field;
       sValues:=sValues+','+pParams[I].Value.AsString;
-      sSetVal:=sSetVal+','+pParams[I].Name+'='+pParams[I].Value.AsString;
+      sSetVal:=sSetVal+','+field+'='+pParams[I].Value.AsString;
     end;
   System.Delete(sValues,1,1);
   System.delete(sFields,1,1);
@@ -893,7 +925,7 @@ Begin
   Result:=S;
 End;
 
-procedure  SetFlds( var sLine: String;
+procedure SetFlds( var sLine: String;
                    const fields: array of Integer;
                    const values: array of const;
                    pChDiv: Char=CHDIV);
@@ -901,206 +933,6 @@ Var I: Integer;
 begin
   for I := Low(fields) to High(fields) do
    SetStr(sLine,fields[I], AssignVal(Values[I]).DeQuotedString, pChDiv);
-end;
-
-procedure SetJSON( JSON: TJSONObject;
-                    const fields: array of string;
-                    const values: array of const);
-Var I: Integer;
-    S,field: String;
-begin
-  if (JSON<>Nil) then
-     for I := Low(fields) to High(fields) do
-      begin
-        field:=fields[I];
-        //value:=JSON.Pairs[I].JsonValue.ToString;
-
-        JSON.RemovePair(field);
-        case Values[I].VType of
-         vtBoolean:
-           JSON.AddPair(field, TJSONBool.Create(Values[I].VBoolean));
-         vtObject:
-           JSON.AddPair(field, (Values[I].VObject As TJSONValue));
-         vtInt64:
-           JSON.AddPair(field, Values[I].VInt64^);
-         vtInteger:
-           JSON.AddPair(field, Values[I].VInteger);
-         vtExtended,
-         vtCurrency:
-           JSON.AddPair(field, Values[I].VExtended^);
-         else
-           if (Values[I].VType = vtVariant) then
-              JSON.AddPair(field, TJSONNull.Create)
-           else
-              begin
-                S:=AssignVal(Values[I]).DeQuotedString;
-                if (S.StartsWith('{') or S.StartsWith('[')) then
-                   JSON.AddPair(field,CreateTJSONValue(S))
-                else
-                   JSON.AddPair(field,S);
-              end;
-        end;
-      end;
-end;
-
-procedure SetJSON( var sJSON: String;
-                    const fields: array of string;
-                    const values: array of const);
-var
-   JSON: TJSONObject;
-begin
-  if sJSON='' then
-     sJSON:='{}';
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       SetJSON(JSON,fields,values);
-       //sJSON:=JSON.Format(JSONIndent);
-       sJSON:=JSON.ToJSON;
-       JSON.Destroy;
-     end;
-end;
-
-procedure SetJSON( var sJSON: PChar;
-                    const fields: array of string;
-                    const values: array of const);
-var
-   JSON: TJSONObject;
-begin
-  if sJSON='' then
-     sJSON:='{}';
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       SetJSON(JSON,fields,values);
-       //sJSON:=JSON.Format(JSONIndent);
-       sJSON:=PChar(JSON.ToJSON);
-       JSON.Destroy;
-     end;
-end;
-
-procedure SetJSONValue( aJSON: TJSONObject;
-                        const fields: array of string;
-                        const Values: array Of const); overload;
-var
-   i: Integer;
-   S: String;
-begin
-  for I := Low(fields) to High(fields) do
-   begin
-     var field:=fields[I];
-     if aJSON.FindValue(field)=nil then
-        case Values[I].VType of
-         vtBoolean:
-           aJSON.AddPair(field, TJSONBool.Create(Values[I].VBoolean));
-         vtObject:
-           aJSON.AddPair(field, (Values[I].VObject As TJSONValue));
-         vtInt64:
-           aJSON.AddPair(field, Values[I].VInt64^);
-         vtInteger:
-           aJSON.AddPair(field, Values[I].VInteger);
-         vtExtended,
-         vtCurrency:
-           aJSON.AddPair(field, Values[I].VExtended^);
-         else
-           if (Values[I].VType = vtVariant) then
-              aJSON.AddPair(field, TJSONNull.Create)
-           else
-              begin
-                S:=AssignVal(Values[I]).DeQuotedString;
-                if (S.StartsWith('{') or S.StartsWith('[')) then
-                   aJSON.AddPair(field,CreateTJSONValue(S))
-                else
-                   aJSON.AddPair(field,S);
-              end;
-        end;
-   end;
-end;
-
-procedure SetJSONValue( var aJSON: string;
-                        const fields: array of string;
-                        const Values: Array Of Const); overload;
-var
-   JSON: TJsonObject;
-begin
-  if aJSON='' then
-     aJSON:='{}';
-  JSON:=CreateTJSONObject(aJSON);
-  if JSON<>Nil then
-     begin
-       SetJSONValue(JSON,fields,values);
-       aJSON:=JSON.ToJSON;
-       JSON.Free;
-     end;
-end;
-
-procedure SetJSONValue( AJSON: TJSONObject;
-                        const AName: String;
-                        BJSON: TJSONObject;
-                        APath: String=''); overload;
-begin
-  if APath='' then
-     APath:=AName;
-  if (AJSON.FindValue(AName)=Nil) and
-     (BJSON.FindValue(APath)<>Nil) then
-     AJSON.AddPair(APath,BJSON.GetValue(APath));
-end;
-
-procedure SetJSONValue( AJSON: TJSONObject;
-                        const AName: string;
-                        BJSON: string;
-                        APath: String=''); overload;
-var
-   JSON: TJSONObject;
-begin
-  if APath='' then
-     APath:=AName;
-  if bJSON='' then
-     exit;
-
-  JSON:=CreateTJSONObject(BJSON);
-  if JSON<>Nil then
-     begin
-       if (AJSON.FindValue(AName)=Nil) and
-          (JSON.FindValue(APath)<>Nil) then
-          AJSON.AddPair(APath,JSON.GetValue(APath));
-       JSON.Free;
-     end;
-end;
-
-procedure SetJSONValue( var AJSON: String;
-                        AName: String;
-                        BJSON: TJSONObject;
-                        APath: String=''); overload;
-var
-   JSON: TJSONObject;
-begin
-  if AJSON='' then
-     AJSON:='{}';
-  JSON:=CreateTJSONObject(AJSON);
-  if JSON<>Nil then
-     begin
-       SetJSONValue(JSON,AName,BJSON,APath);
-       AJSON:=JSON.ToString;
-       JSON.Free;
-     end;
-end;
-
-procedure SetJSONValue( var AJSON: String;
-                        const AName, BJSON: string;
-                        APath: String=''); overload;
-var
-   JSON: TJSONObject;
-begin
-  if AJSON='' then
-     AJSON:='{}';
-  JSON:=CreateTJSONObject(AJSON);
-  if JSON<>Nil then
-     begin
-       SetJSONValue(JSON,AName,BJSON,APath);
-       AJSON:=JSON.ToString;
-       JSON.Free;
-     end;
 end;
 
 function StrToDateTimeFmt(sDateTime: String): TDateTime;
@@ -1471,42 +1303,6 @@ Begin
   LB[Index]:=S;
 End;
 
-Procedure JSONRemove( var sJSON: String;
-                      const fields: array of string);
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       for var I := Low(fields) to High(fields) do
-         JSON.RemovePair(fields[I]);
-       //sJSON:=JSON.Format(JSONIndent);
-       sJSON:=JSON.ToJSON;
-       FreeAndNil(JSON);
-     end;
-end;
-
-Procedure JSONRemove(var sJSON: String; const FieldName: String);
-var JSON: TJSONObject;
-begin
-  JSON:=CreateTJSONObject(sJSON);
-  if JSON<>Nil then
-     begin
-       JSON.RemovePair(fieldName);
-       //sJSON:=JSON.Format(JSONIndent);
-       sJSON:=JSON.ToJSON;
-       FreeAndNil(JSON);
-     end;
-end;
-
-Procedure JSONRemove( oJSON: TJSONObject;
-                     const fields: array of string);
-begin
-  if oJSON<>Nil then
-     for var I := Low(fields) to High(fields) do
-        oJSON.RemovePair(fields[I]);
-end;
-
 function GetBool(OJSON: TJSONObject; const FieldName: string): boolean; Overload;
 Var
     Ok: Boolean;
@@ -1795,6 +1591,288 @@ Begin
   if Not VarIsNull(Item) then
      Result:=Trim(VarToStrDef(Item.Attributes[AttribName],''));
 End;
+
+procedure SetJSON( JSON: TJSONObject;
+                   const fields: array of string;
+                   const values: array of const;
+                   findExist: boolean=false);
+Var I: Integer;
+    S,field: String;
+    Ok: Boolean;
+begin
+  if (JSON<>Nil) then
+     for I := Low(fields) to High(fields) do
+      begin
+        field:=fields[I];
+        Ok:=True;
+        if findExist then
+           Ok:=(JSON.FindValue(field)=nil);
+        if Ok then
+           begin
+            JSON.RemovePair(field);
+            case Values[I].VType of
+             vtBoolean:
+               JSON.AddPair(field, TJSONBool.Create(Values[I].VBoolean));
+             vtObject:
+               JSON.AddPair(field, (Values[I].VObject As TJSONValue));
+             vtInt64:
+               JSON.AddPair(field, Values[I].VInt64^);
+             vtInteger:
+               JSON.AddPair(field, Values[I].VInteger);
+             vtExtended,
+             vtCurrency:
+               JSON.AddPair(field, Values[I].VExtended^);
+             else
+               if (Values[I].VType = vtVariant) then
+                  JSON.AddPair(field, TJSONNull.Create)
+               else
+                  begin
+                    S:=AssignVal(Values[I]).DeQuotedString;
+                    if (S.StartsWith('{') or S.StartsWith('[')) then
+                       JSON.AddPair(field,CreateTJSONValue(S))
+                    else
+                       JSON.AddPair(field,S);
+                  end;
+            end;
+           end;
+      end;
+end;
+
+procedure SetJSON( var sJSON: String;
+                   const fields: array of string;
+                   const values: array of const;
+                   findExist: boolean=false);
+var
+   JSON: TJSONObject;
+begin
+  if sJSON='' then
+     sJSON:='{}';
+  JSON:=CreateTJSONObject(sJSON);
+  if JSON<>Nil then
+     begin
+       SetJSON(JSON,fields,values,findExist);
+       sJSON:=JSON.ToJSON;
+       JSON.Destroy;
+     end;
+end;
+
+procedure SetJSON( var sJSON: PChar;
+                   const fields: array of string;
+                   const values: array of const;
+                   findExist: boolean=false);
+var
+   JSON: TJSONObject;
+begin
+  if sJSON='' then
+     sJSON:='{}';
+  JSON:=CreateTJSONObject(sJSON);
+  if JSON<>Nil then
+     begin
+       SetJSON(JSON,fields,values,findExist);
+       sJSON:=PChar(JSON.ToJSON);
+       JSON.Destroy;
+     end;
+end;
+
+procedure SetJSONValue( aJSON: TJSONObject;
+                        const fields: array of string;
+                        const Values: array Of const); overload;
+begin
+  SetJSON(aJSON,fields,values,true);
+end;
+
+procedure SetJSONValue( var aJSON: string;
+                        const fields: array of string;
+                        const Values: Array Of const); overload;
+var
+   JSON: TJsonObject;
+begin
+  if AJSON='' then
+     AJSON:='{}';
+  JSON:=CreateTJSONObject(aJSON);
+  if JSON<>Nil then
+     begin
+       SetJSON(JSON,fields,values,true);
+       aJSON:=JSON.ToJSON;
+       JSON.Destroy;
+     end;
+end;
+
+procedure SetJSONValue( AJSON: TJSONObject;
+                        const AName: String;
+                        BJSON: TJSONObject;
+                        APath: String=''); overload;
+var
+  value: TJSONValue;
+begin
+  if APath='' then
+     APath:=AName;
+  if (AJSON.FindValue(AName)=Nil) then
+     begin
+       value:=BJSON.FindValue(APath);
+       if (value<>nil) then
+          AJSON.AddPair(APath,TJSONValue(value.Clone));
+     end;
+end;
+
+procedure SetJSONValue( AJSON: TJSONObject;
+                        const AName: string;
+                        const BJSON: string;
+                        APath: String=''); overload;
+var
+   JSON: TJSONObject;
+begin
+  if bJSON='' then
+     exit;
+  JSON:=CreateTJSONObject(BJSON);
+  if JSON<>Nil then
+     begin
+       SetJSONValue(AJSON,AName,JSON,APath);
+       JSON.Destroy;
+     end;
+end;
+
+procedure SetJSONValue( var AJSON: String;
+                        AName: String;
+                        BJSON: TJSONObject;
+                        APath: String=''); overload;
+var
+   JSON: TJSONObject;
+begin
+  if AJSON='' then
+     AJSON:='{}';
+  JSON:=CreateTJSONObject(AJSON);
+  if JSON<>Nil then
+     begin
+       SetJSONValue(JSON,AName,BJSON,APath);
+       AJSON:=JSON.ToJSON;
+       JSON.Destroy;
+     end;
+end;
+
+procedure SetJSONValue( var AJSON: String;
+                        AName: String;
+                        const BJSON: string;
+                        APath: String=''); overload;
+var
+   JSON: TJSONObject;
+begin
+  if AJSON='' then
+     AJSON:='{}';
+  JSON:=CreateTJSONObject(AJSON);
+  if JSON<>Nil then
+     begin
+       SetJSONValue(JSON,AName,BJSON,APath);
+       AJSON:=JSON.ToJSON;
+       JSON.Destroy;
+     end;
+end;
+
+procedure SetJSONValue( aJSON, bJSON: TJSONObject;
+                        const fields: array of string); overload;
+var
+   i: Integer;
+   value: TJSONValue;
+begin
+  for I := Low(fields) to High(fields) do
+   begin
+     var field:=fields[I];
+     if (AJSON.FindValue(field)=Nil) then
+        begin
+          value:=BJSON.FindValue(field);
+          if (value<>nil) then
+             AJSON.AddPair(field,TJSONValue(value.Clone));
+        end;
+   end;
+end;
+
+procedure SetJSONValue( aJSON: TJSONObject;
+                        const bJSON: string;
+                        const fields: array of string); overload;
+var
+   JSON: TJSONObject;
+begin
+  JSON:=CreateTJSONObject(bJSON);
+  if JSON<>Nil then
+     begin
+       SetJSONValue(aJSON,JSON,fields);
+       JSON.Destroy;
+     end;
+end;
+
+procedure SetJSONValue( var aJSON: string;
+                        const bJSON: string;
+                        const fields: array of string); overload;
+var
+   tJSON,
+   lJSON: TJSONObject;
+begin
+  if aJSON='' then
+     aJSON:='{}';
+  tJSON:=CreateTJSONObject(AJSON);
+  if tJSON<>Nil then
+     begin
+       lJSON:=CreateTJSONObject(bJSON);
+       if lJSON<>Nil then
+          begin
+            SetJSONValue(tJSON,lJSON,fields);
+            aJSON:=tJSON.ToJSON;
+            lJSON.Destroy;
+          end;
+       tJSON.Destroy;
+     end;
+end;
+
+procedure SetJSONValue( var aJSON: string;
+                        bJSON: TJSONObject;
+                        const fields: array of string); overload;
+var
+   JSON: TJSONObject;
+begin
+  if AJSON='' then
+     AJSON:='{}';
+  JSON:=CreateTJSONObject(AJSON);
+  if JSON<>Nil then
+     begin
+       SetJSONValue(JSON,BJSON,fields);
+       AJSON:=JSON.ToJSON;
+       JSON.Destroy;
+     end;
+end;
+
+
+Procedure JSONRemove( var sJSON: String;
+                      const fields: array of string);
+var JSON: TJSONObject;
+begin
+  JSON:=CreateTJSONObject(sJSON);
+  if JSON<>Nil then
+     begin
+       for var I := Low(fields) to High(fields) do
+         JSON.RemovePair(fields[I]);
+       sJSON:=JSON.ToJSON;
+       FreeAndNil(JSON);
+     end;
+end;
+
+Procedure JSONRemove(var sJSON: String; const FieldName: String);
+var JSON: TJSONObject;
+begin
+  JSON:=CreateTJSONObject(sJSON);
+  if JSON<>Nil then
+     begin
+       JSON.RemovePair(fieldName);
+       sJSON:=JSON.ToJSON;
+       FreeAndNil(JSON);
+     end;
+end;
+
+Procedure JSONRemove( oJSON: TJSONObject;
+                     const fields: array of string);
+begin
+  for var I := Low(fields) to High(fields) do
+    oJSON.RemovePair(fields[I]);
+end;
 
 function LeftS(S: String; Len: Integer; Ch: Char=' '): String;
 begin

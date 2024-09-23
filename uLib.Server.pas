@@ -184,10 +184,10 @@ Var
   lSchema: String;
 begin
   lSchema:=GetStr(ActiveCustomer,'schema');
-  lSchema:=Ifthen(lSchema<>'',lSchema+'.','').ToLower;
+  lSchema:=Ifthen(lSchema<>'',lSchema+'.','');
 
-  db_MAIN:=GetStr(ActiveMain,'database')+'.'+lSchema;
-  db_CUST:=GetStr(ActiveCustomer,'database')+'.'+lSchema;
+  db_MAIN:=(GetStr(ActiveMain,'database')+'.'+lSchema).ToLower;
+  db_CUST:=(GetStr(ActiveCustomer,'database')+'.'+lSchema).ToLower;
 end;
 
 function TIdHTTPWebBrokerServer.BindPort(APort: Integer): Boolean;

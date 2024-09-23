@@ -316,7 +316,7 @@ Begin
         begin
           TS.Insert(1,'       OUTPUT inserted.id,'+fldReturn.QuotedString+
                                     ',inserted.'+fldReturn);
-          TS.Insert(2,'       INTO @TempTable');
+          TS.Insert(2,'         INTO @TempTable');
         end;
      TFDRDBMSKinds.MYSQL:
        begin
@@ -703,10 +703,10 @@ begin
      begin
        cCmd.Add('SELECT @Error := @@error;');
        cCmd.Add('IF (@Error <> 0) THEN');
-       cCmd.Add('  ROLLBACK;');
-       cCmd.Add('  SELECT concat(''Transaction failed with error: '', @Error);');
+       cCmd.Add('   ROLLBACK;');
+       cCmd.Add('   SELECT concat(''Transaction failed with error: '', @Error);');
        cCmd.Add('ELSE');
-       cCmd.Add('  COMMIT;');
+       cCmd.Add('   COMMIT;');
        cCmd.Add('END IF;');
        cCmd.Add('SELECT '+sFields+';');
      end;
