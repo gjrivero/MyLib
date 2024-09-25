@@ -42,6 +42,7 @@ var
 
 
 function  JSONFilter(sJSON: String): String;
+function  JSONTrimFilter(sJSON: String): String;
 function  FToStrSQL(ValueFloat: Extended; aDec: Integer=6): String; overload;
 function  FToStrSQL(const Value: String; aDec: Integer=6): String; overload;
 function  StrToReal(const St: String; defDec: Integer=0): Double;
@@ -368,21 +369,41 @@ end;
 function JSONFilter(sJSON: String): String;
 begin
   // \b  Backspace (ascii code 08)
-  sJSON:=ReplaceStr(sJSON,#08,'\b');
+  sJSON:=ReplaceText(sJSON,#08,'\b');
   // \f  Form feed (ascii code 0C)
-  sJSON:=ReplaceStr(sJSON,#12,'\f');
+  sJSON:=ReplaceText(sJSON,#12,'\f');
   // \n  New line
-  sJSON:=ReplaceStr(sJSON,#10,'\n');
+  sJSON:=ReplaceText(sJSON,#10,'\n');
   // \r  Carriage return
-  sJSON:=ReplaceStr(sJSON,#13,'\r');
+  sJSON:=ReplaceText(sJSON,#13,'\r');
   // \t  Tab
-  sJSON:=ReplaceStr(sJSON,#09,'\t');
+  sJSON:=ReplaceText(sJSON,#09,'\t');
   // \\  Backslash character
-  sJSON:=ReplaceStr(sJSON,'\','\\');
+  sJSON:=ReplaceText(sJSON,'\','\\');
   // \"  Double quote
-  sJSON:=ReplaceStr(sJSON,'"','\"');
+  sJSON:=ReplaceText(sJSON,'"','\"');
   result:=sJSON;
 end;
+
+function JSONTrimFilter(sJSON: String): String;
+begin
+  // \b  Backspace (ascii code 08)
+  sJSON:=ReplaceText(sJSON,'\b','');
+  // \f  Form feed (ascii code 0C)
+  sJSON:=ReplaceText(sJSON,'\f','');
+  // \n  New line
+  sJSON:=ReplaceText(sJSON,'\n','');
+  // \r  Carriage return
+  sJSON:=ReplaceText(sJSON,'\r','');
+  // \t  Tab
+  sJSON:=ReplaceText(sJSON,'\t','');
+  // \\  Backslash character
+  sJSON:=ReplaceText(sJSON,'\\','');
+  // \"  Double quote
+  sJSON:=ReplaceText(sJSON,'\"','');
+  result:=sJSON;
+end;
+
 
 function AssignVal(const AVarRec: TVarRec): String; Overload;
 var Str: String;

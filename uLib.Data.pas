@@ -35,12 +35,7 @@ function GetDataSet( const sQuery: String;
                            pParams: TFDParams=Nil): TDataSet;
 function GetData( const sQuery: String;
                            pParams: TFDParams=Nil): TJSONValue; Overload;
-function GetData( sQuery: TStrings;
-                  pParams: TFDParams=nil): TJSONValue; Overload;
 function GetData( const sQuery: String;
-                  const fldNames:  Array of String;
-                  const fldValues: Array of const): TJSONValue; Overload;
-function GetData( sQuery: TStrings;
                   const fldNames:  Array of String;
                   const fldValues: Array of const): TJSONValue; Overload;
 
@@ -154,21 +149,21 @@ type
     { Private declarations }
     //function ParamsToJSONObject(params: TFDParams): TJSONObject;
     function cmdAdd(Const dbTableName,
-                          Context: String): TJSONValue;
+                          Context: String): TJSONObject;
     function cmdUpd(Const dbTableName,
                           Context: String;
-                          Condition: String=''): TJSONValue;
+                          Condition: String=''): TJSONObject;
+
     function cmdDel( Const dbTableName, sWhere: String): TJSONObject;
-    function cmdExecute(sCmd: string; pParams: TFDParams=Nil; aCommit: Boolean=false): Integer; overload;
-    function cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil; aCommit: Boolean=false): Integer; overload;
+    function cmdExecute(sCmd: string; pParams: TFDParams=Nil; aCommit: Boolean=false): TJSONObject; overload;
+    function cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil; aCommit: Boolean=false): TJSONObject; overload;
 
     function GetRecords(Const sQuery: String;
                               pParams: TFDParams=nil): TDataSet;
 
     function execTrans( cSQL, sDecl: TStringList;
                          sFields: String;
-                         pParams: TFDParams;
-                         var iError: integer): TJSONArray;
+                         pParams: TFDParams): TJSONObject;
 
     procedure SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
   public
@@ -448,16 +443,17 @@ begin
   result:=TFDQuery.Create(DMC.FDM);
   result.Connection:=DMC.FDM.Cnx;
   result.SQL.Text:=sQry;
-  if pParams<>Nil then
-     begin
-       result.Params:=pParams;
-       result.Prepare;
-     end;
-  Try
-    result.OpenOrExecute;
-  Except
-    SaveLogFile(result.SQL.Text);
-  End;
+  if (sQry<>'') then
+     Try
+       if pParams<>Nil then
+          begin
+            result.Params:=pParams;
+            result.Prepare;
+          end;
+       result.OpenOrExecute;
+     Except
+       SaveLogFile(result.SQL.Text);
+     End;
   DMC.Free;
 end;
 
@@ -471,16 +467,17 @@ begin
   result:=TFDCommand.Create(DMC.FDM);
   result.Connection:=DMC.FDM.Cnx;
   result.CommandText.Text:=sQry;
-  if pParams<>Nil then
-     begin
-       result.Params:=pParams;
-       result.Prepare;
-     end;
-  Try
-    result.OpenOrExecute;
-  Except
-     SaveLogFile(result.CommandText.Text);
-  End;
+  if (sQry<>'') then
+     Try
+       if pParams<>Nil then
+          begin
+            result.Params:=pParams;
+            result.Prepare;
+          end;
+       result.OpenOrExecute;
+     Except
+       SaveLogFile(result.CommandText.Text);
+     End;
   DMC.Free;
 end;
 
@@ -499,7 +496,7 @@ begin
   inherited;
 end;
 
-procedure TFDMController.SetHeader(aHeader: TStringList; ForAudit: Boolean=false);
+procedure TFDMController.SetHeader( aHeader: TStringList; ForAudit: Boolean=false);
 {$IF DEFINED(Linux) or DEFINED(MACOS) or DEFINED(MSWINDOWS)}
 Var
   userId,
@@ -554,32 +551,13 @@ begin
      end;
 end;
 
-
-(*
-function TFDMController.ParamsToJSONObject(params: TFDParams): TJSONObject;
-Var I: Integer;
-    sJSON: String;
-begin
-  sJSON:='{';
-  for I := 0 to params.count-1 do
-    begin
-      if I>0 then
-         sJSON:=sJSON+',';
-      sJSON:=sJSON+'"'+Params[I].Name+'":';
-      if VarIsNumeric(Params[I].Value) then
-         sJSON:=sJSON+VarToStr(Params[I].Value)
-      else
-         sJSON:=sJSON+'"'+VarToStr(Params[I].Value)+'"';
-    end;
-  sJSON:=sJSON+'}';
-  result:=TJSONObject.ParseJSONValue(sJSON) as TJSONObject;
-end;
-*)
-
-function TFDMController.cmdExecute(sCmd: TStringList; pParams: TFDParams=Nil; aCommit: Boolean=false): Integer;
+function TFDMController.cmdExecute( sCmd: TStringList;
+                                    pParams: TFDParams=Nil;
+                                    aCommit: Boolean=false): TJSONObject;
 Var
    aHeader: TStringList;
 begin
+  result:=TJSONObject.Create;
   aHeader:=TStringList.Create;
   SetHeader(aHeader);
   aHeader.Add(sCmd.Text);
@@ -597,19 +575,24 @@ begin
     FDM.Cmd.Execute();
     if Not aCommit then
         FDM.Cnx.Commit;
-    Result:=DB_SUCCESSFUL;
+    Result.AddPair('status',DB_SUCCESSFUL);
+    Result.AddPair('response','');
   except
    on E: EFDDBEngineException do  begin
+           Result.AddPair('status',DB_DATABASE_ERROR);
+           Result.AddPair('response',E.Message);
            if Not aCommit then
                FDM.Cnx.Rollback;
            SaveLogFile(FDM.Cmd.CommandText.text);
-           raise Exception.Create(E.Message);
+           //raise Exception.Create(E.Message);
          end;
   End;
   aHeader.Destroy;
 end;
 
-function TFDMController.cmdExecute(sCmd: String; pParams: TFDParams=Nil; aCommit: Boolean=false): Integer;
+function TFDMController.cmdExecute( sCmd: String; pParams:
+                                    TFDParams=Nil;
+                                    aCommit: Boolean=false): TJSONObject;
 var
   TS: TStringList;
 begin
@@ -621,13 +604,13 @@ end;
 
 function TFDMController.execTrans( cSQL, sDecl: TStringList;
                          sFields: String;
-                         pParams: TFDParams;
-                         var iError: integer): TJSONArray;
+                         pParams: TFDParams): TJSONObject;
 var
    cCmd: TStringList;
    I: Integer;
    OkArray: Boolean;
 begin
+  result:=TJSONObject.Create;
   OkArray:=False;
   If ContainsText(sFields,'SELECT ') then
      OkArray:=ContainsText(sFields,' FROM ');
@@ -737,34 +720,27 @@ begin
   FDM.Cnx.StartTransaction;
   Try
     FDM.Qry.OpenOrExecute;
-    if OkArray then
-       Result:=FDM.Qry.AsJSONArray
-    else
-       begin
-         Result:=TJSONArray.Create;
-         Result.Add(FDM.Qry.AsJSONObject);
-       end;
+    Result.AddPair('status',0);
+    Result.AddPair('response',FDM.Qry.AsJSONvalue);
     //if Not aCommit then
     FDM.Cnx.Commit;
-    iError:=0;
   except
    on E: EFDException do begin
-         iError:=-1;
          //if Not aCommit then
          FDM.Cnx.Rollback;
-         Result:=CreateTJSONArray('[{"error":"'+E.Message+'"}]');
+         Result.AddPair('status',-1);
+         Result.AddPair('response',E.Message);
          SaveLogFile(FDM.Qry.SQL.Text);
    end;
   End;
   cCmd.Destroy;
 End;
 
-function TFDMController.cmdAdd( const dbTableName, Context: String): TJSONValue;
+function TFDMController.cmdAdd( const dbTableName, Context: String): TJSONObject;
 Var
   sCmd,
   Dcl: TStringList;
   AJSON: TJSONArray;
-  AValue: TJSONValue;
   fldsReturn: String;
   I,error: Integer;
 begin
@@ -798,9 +774,7 @@ begin
        begin
          sCmd.Add(sqlInsert(dbTableName,Context,fldsReturn));
        end;
-    AValue:=execTrans(sCmd,Dcl,fldsReturn,nil,error);
-    TJSONObject(result).AddPair('status',Error);
-    TJSONObject(result).AddPair('response',AValue);
+    result:=execTrans(sCmd,Dcl,fldsReturn,nil);
   finally
     sCmd.Destroy;
     Dcl.Destroy;
@@ -808,12 +782,11 @@ begin
 End;
 
 function TFDMController.cmdUpd(Const dbTableName, Context: String;
-                           Condition: String): TJSONValue;
+                           Condition: String): TJSONObject;
 Var
   sCmd: TStringList;
   AJSON: TJSONArray;
   oJSON: TJSOnObject;
-  AValue,
   lValue: TJSONValue;
   sWhere,
   fldsReturn: String;
@@ -847,9 +820,7 @@ begin
        begin
          sCmd.Add(sqlUpdate(dbTableName,Context,Condition));
        end;
-    AValue:=execTrans(sCmd,Nil,fldsReturn,Nil,error);
-    TJSONObject(result).AddPair('status',Error);
-    TJSONObject(result).AddPair('response',AValue);
+    result:=execTrans(sCmd,Nil,fldsReturn,Nil);
   finally
     sCmd.Destroy;
   end;
@@ -859,15 +830,12 @@ function TFDMController.cmdDel(Const dbTableName, sWhere: String): TJSONObject;
 Var
    sCmd: TStringList;
    error: Integer;
-   AValue: TJSONValue;
 begin
   sCmd:=TStringList.create;
   try
     sCmd.Add('DELETE FROM '+dbTableName);
     sCmd.Add(' WHERE '+sWhere+';');
-    AValue:=execTrans(sCmd,Nil,'',Nil,error);
-    TJSONObject(result).AddPair('status',Error);
-    TJSONObject(result).AddPair('response',AValue);
+    result:=execTrans(sCmd,Nil,'',Nil);
   finally
     sCmd.Destroy;
   end;
@@ -891,7 +859,7 @@ begin
   except
     on E: EFDDBEngineException do begin
             SaveLogFile(FDM.Qry.SQL.Text);
-            raise Exception.Create(E.Message);
+            //raise Exception.Create(E.Message);
           end;
   end;
   aHeader.Destroy;
@@ -1112,12 +1080,6 @@ begin
   end;
 end;
 
-function GetData( sQuery: TStrings;
-                  pParams: TFDParams=nil): TJSONValue; overload;
-begin
-  result:=GetData(sQuery.Text,pParams);
-end;
-
 function GetData( const sQuery: String;
                   const fldNames:  Array of String;
                   const fldValues: Array of const): TJSONValue; overload;
@@ -1130,13 +1092,6 @@ begin
   finally
     pParams.Destroy;
   End;
-end;
-
-function GetData( sQuery: TStrings;
-                  const fldNames:  Array of String;
-                  const fldValues: Array of const): TJSONValue; overload;
-begin
-  result:=GetData(sQuery.Text,fldNames,fldValues);
 end;
 
 function GetData( const sTblName: String;
@@ -1268,7 +1223,6 @@ Var
    Cmd,
    Dcl: TStringList;
    Error: Integer;
-   AValue: TJSONValue;
 begin
   DMC:=TFDMController.Create(dmMain);
   Result:=TJSONObject.Create;
@@ -1282,9 +1236,7 @@ begin
        Dcl.Text:=sDecl;
      end;
   try
-    AValue:=DMC.execTrans(Cmd, Dcl, sFields, pParams, Error);
-    result.AddPair('status',Error);
-    result.AddPair('response',AValue);
+    result:=DMC.execTrans(Cmd, Dcl, sFields, pParams);
   finally
     DMC.Destroy;
     Cmd.Destroy;
@@ -1299,15 +1251,11 @@ function ExecTransact( cSQL: TStringList;
                        pParams: TFDParams=nil): TJSONObject;
 Var
    DMC: TFDMController;
-   AValue: TJSONValue;
    Error: Integer;
 begin
   DMC:=TFDMController.Create(dmMain);
-  Result:=TJSONObject.Create;
   try
-    AValue:=DMC.execTrans(cSQL, sDecl, sFields, pParams, Error);
-    result.AddPair('status',Error);
-    result.AddPair('response',AValue);
+    result:=DMC.execTrans(cSQL, sDecl, sFields, pParams);
   finally
     DMC.Destroy;
   end;
@@ -1324,7 +1272,7 @@ begin
   DMC:=TFDMController.Create(dmMain);
   Result:=TJSONObject.Create;
   try
-    result.AddPair('response',DMC.cmdExecute(sCommands,pParams,aCommit));
+    result:=DMC.cmdExecute(sCommands,pParams,aCommit);
   finally
     DMC.Destroy;
   end;
@@ -1351,7 +1299,7 @@ begin
   pParams:=setFDParams(fldNames,fldValues);
   Result:=TJSONObject.Create;
   try
-    result.AddPair('response',DMC.cmdExecute(sCommands,pParams,aCommit));
+    result:=DMC.cmdExecute(sCommands,pParams,aCommit);
   finally
     pParams.Destroy;
     DMC.Destroy;
