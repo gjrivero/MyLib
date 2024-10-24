@@ -9,7 +9,7 @@ uses
 
 const
    SS_USER_NAME   = 'user_name';
-   SS_ROLE        = 'role';
+   SS_USER_ROLE   = 'user_role';
    SS_PASSWORD    = 'password';
    SS_VALID       = 'valid';
    SS_ERROR       = 'error';
@@ -39,12 +39,11 @@ var
    db_MAIN,
    db_CUST,
    ds_session,
-
    ActiveMain,
    ActiveCustomer,
-
    DefConnection,
    MailHostSettings: String;
+
    ACustomerList: TStringList;
    RDBMSKind: TFDRDBMSKind;
 

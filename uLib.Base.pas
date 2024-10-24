@@ -60,34 +60,33 @@ function  LeftS(S: String; Len: Integer; Ch: Char=' '): String;
 
 function  GetFloat(OJSON: TJSONObject; const fieldname: String; Default: Double=0): Double; Overload;
 function  GetFloat(const sJSON, fieldname: String; Default: Double=0): Double; Overload;
-function  GetFloat(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Double; OverLoad;
-function  GetFloat(const St: String; Index: Integer; CDiv: Char=ChDiv): Double; OverLoad;
+function  GetFloat(LB: TStrings; Index, N: Integer; Default: Double=0; CDiv: Char=ChDiv): Double; OverLoad;
+function  GetFloat(const St: String; Index: Integer; Default: Double=0; CDiv: Char=ChDiv): Double; OverLoad;
 function  GetFloat(Item: IXMLNode; const AttribName: String; Default: Double=0): Double; Overload;
 function  GetFloat(Item: IXMLNode; Default: Double=0): Double; Overload;
-function  GetFloat(FT: TDataSet; const FieldName: String): Double; OverLoad;
+function  GetFloat(FT: TDataSet; const FieldName: String; Default: Double=0): Double; OverLoad;
 
 function  GetInt(OJSON: TJSONObject; const fieldname: String; Default: Integer=0): Integer; Overload;
 function  GetInt(const sJSON, fieldname: String; Default: Integer=0): Integer; Overload;
-function  GetInt(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Integer; OverLoad;
-function  GetInt(const St: String; Index: Integer; CDiv: Char=ChDiv): Integer; Overload;
+function  GetInt(LB: TStrings; Index, N: Integer; Default: Integer=0; CDiv: Char=ChDiv): Integer; OverLoad;
+function  GetInt(const St: String; Index: Integer; Default: Integer=0; CDiv: Char=ChDiv): Integer; Overload;
 function  GetInt(Item: IXMLNode; const AttribName: String; Default: Integer=0): Integer; Overload;
 function  GetInt(Item: IXMLNode; Default: Integer=0): Integer; Overload;
-function  GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;
+function  GetInt(FT: TDataSet; const FieldName: String; Default: Integer=0): Integer; Overload;
 
-function  GetStr(OJSON: TJSONObject; const FieldName: String; Default: String=''): String; Overload;
-function  GetStr(const sJSON, fieldname: String; Default: String=''): String; Overload;
+function  GetStr(OJSON: TJSONObject; const FieldName: String): String; Overload;
+function  GetStr(const sJSON, fieldname: String): String; Overload;
 function  GetStr(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): String; Overload;
-function  GetStr(const St: String; Index: Integer; CDiv: String): String; Overload;
-function  GetStr(const St: String; Index: Integer; CDiv: Char=ChDiv): String; Overload;
+function  GetStr(const St: String; Index: Integer; CDiv: String=''): String; Overload;
+function  GetStr(FT: TDataSet; const FieldName: String): String; Overload;
 function  GetStr(Item: IXMLNode): String; Overload;
 function  GetStr(Item: IXMLNode; const AttribName: String): String; Overload;
-function  GetStr(FT: TDataSet; const FieldName: String): String; Overload;
 
 function  GetDate(OJSON: TJSONObject; const fieldname: String; Default: TDateTime=0): TDateTime; Overload;
 function  GetDate(const sJSON, fieldname: String; Default: TDateTime=0): TDateTime; Overload;
-function  GetDate(FT: TDataSet; const FieldName: String): TDateTime; Overload;
-function  GetDate(const St: String; Index: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
-function  GetDate(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): TDateTime; Overload;
+function  GetDate(FT: TDataSet; const FieldName: String; Default: TDateTime=0): TDateTime; Overload;
+function  GetDate(const St: String; Index: Integer; Default: TDateTime=0; CDiv: Char=ChDiv): TDateTime; Overload;
+function  GetDate(LB: TStrings; Index, N: Integer; Default: TDateTime=0; CDiv: Char=ChDiv): TDateTime; Overload;
 function  GetDate(Item: IXMLNode; const AttribName: String; Default: TDateTime=0): TDateTime; Overload;
 function  GetDate(Item: IXMLNode; Default: TDateTime=0): TDateTime; Overload;
 
@@ -414,8 +413,8 @@ begin
    vtInt64: Str:=AVarRec.VInt64^.ToString;
    vtInteger: Str:=AVarRec.VInteger.ToString;
    vtObject:  Str:=UnicodeString(AVarRec.VUnicodeString);
-   vtExtended,
-   vtCurrency: Str:=AVarRec.VExtended^.ToString;
+   vtExtended: Str:=AVarRec.VExtended^.ToString;
+   vtCurrency: Str:=AVarRec.VCurrency^.ToString;
 
    vtWideChar: Str:=QuotedStr(AVarRec.VWideChar);
    vtWideString: Str:=WideString(AVarRec.VWideString);
@@ -547,12 +546,12 @@ Begin
    vtInteger:    Ok:=AVarRec.VInteger<>0;
    vtBoolean:    Ok:=AVarRec.VBoolean;
    vtChar:       Ok:=AVarRec.VChar<>'';
+   vtCurrency:   Ok:=AVarRec.VCurrency^<>0;
    vtExtended:   Ok:=AVarRec.VExtended^<>0;
    vtString:     Ok:=AVarRec.VString^<>'';
    vtPChar:      Ok:=String(AVarRec.VPChar)<>'';
    vtPWideChar:  Ok:=String(AVarRec.VPWideChar)<>'';
    vtAnsiString: Ok:=string(AVarRec.VAnsiString)<>'';
-   vtCurrency:   Ok:=AVarRec.VCurrency^<>0;
    vtVariant:    Ok:=TDateTime(AVarRec.VVariant^)<>0;
    vtWideChar:   Ok:=AVarRec.VWideChar<>'';
    vtWideString: Ok:=WideCharToString(AVarRec.VWideString)<>'';
@@ -1351,9 +1350,20 @@ begin
   result:=Ok;
 end;
 
-Function GetFloat(FT: TDataSet; const FieldName: String): Double; Overload;
+Function GetFloat(FT: TDataSet; const FieldName: String; Default: Double=0): Double; Overload;
+var
+   t,
+   resp: Double;
 Begin
-  Result:=FT.FieldByName(FieldName).AsExtended;
+  resp:=Default;
+  try
+    t:=FT.FieldByName(FieldName).AsExtended;
+    if t<>0 then
+       resp:=t;
+  finally
+
+  end;
+  result:=resp;
 End;
 
 Function GetFloat(OJSON: TJSONObject; const fieldname: String; Default: Double=0): Double; Overload;
@@ -1363,32 +1373,33 @@ begin
   Result:=ifThen( aValue=0, Default, aValue);
 end;
 
-Function GetFloat(const St: String; Index: Integer; CDiv: Char=ChDiv): Double; Overload;
+Function GetFloat(const St: String; Index: Integer; Default: Double=0; CDiv: Char=ChDiv): Double; Overload;
 Begin
   Result:=StrToReal(GetStr(St,Index,CDiv));
 End;
 
-Function GetFloat(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Double; OverLoad;
+Function GetFloat(LB: TStrings; Index, N: Integer; Default: Double=0; CDiv: Char=ChDiv): Double; OverLoad;
 Var St: String;
 Begin
   Result:=0;
   If Index<0 Then
      Exit;
   St:=LB[Index];
-  Result:=GetFloat(St,N,CDiv);
+  Result:=GetFloat(St,N,Default,CDiv);
 End;
 
 Function GetFloat(const sJSON, fieldname: String; Default: Double=0): Double;
 var JSON: TJSONObject;
+    resp: Double;
 begin
+  Resp:=Default;
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
-       Result:=GetFloat(JSON,fieldName,Default);
+       Resp:=GetFloat(JSON,fieldName,Default);
        FreeAndNil(JSON);
-     end
-  else
-     result:=0;
+     end;
+  result:=resp;
 end;
 
 Function GetFloat(Item: IXMLNode; const AttribName: String; Default: Double=0): Double; Overload;
@@ -1419,24 +1430,24 @@ begin
   Result:=ifThen(aValue=0, Default, aValue);
 end;
 
-Function GetInt(FT: TDataSet; const FieldName: String): Integer; Overload;
+Function GetInt(FT: TDataSet; const FieldName: String; Default: Integer=0): Integer; Overload;
 Begin
   Result:=StrToInteger(FT.FieldByName(FieldName).AsString);
 End;
 
-Function GetInt(const St: String; Index: Integer; CDiv: Char=ChDiv): Integer; Overload;
+Function GetInt(const St: String; Index: Integer; Default: Integer=0; CDiv: Char=ChDiv): Integer; Overload;
 Begin
   Result:=StrToInteger(GetStr(St,Index,CDiv));
 End;
 
-Function GetInt(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): Integer; OverLoad;
+Function GetInt(LB: TStrings; Index, N: Integer; Default: Integer=0; CDiv: Char=ChDiv): Integer; OverLoad;
 Var St: String;
 Begin
   Result:=0;
   If Index<0 Then
      Exit;
   St:=LB[Index];
-  Result:=GetInt(St,N,cDiv);
+  Result:=GetInt(St,N,Default,cDiv);
 End;
 
 Function GetInt(const sJSON, fieldname: String; Default: Integer=0): Integer;
@@ -1471,7 +1482,7 @@ Begin
   Result:=StrToDateTimeFmt(GetStr(OJSON,fieldName));
 End;
 
-Function GetDate(FT: TDataSet; const FieldName: String): TDateTime; Overload;
+Function GetDate(FT: TDataSet; const FieldName: String; Default: TDateTime=0): TDateTime; Overload;
 Var D: TDateTime;
 Begin
   D:=-1;
@@ -1480,19 +1491,19 @@ Begin
   Result:=D;
 End;
 
-Function GetDate(const St: String; Index: Integer; CDiv: Char=ChDiv ): TDateTime; Overload;
+Function GetDate(const St: String; Index: Integer; Default: TDateTime=0; CDiv: Char=ChDiv ): TDateTime; Overload;
 Begin
   Result:=StrToDateTimeFmt(GetStr(St,Index,CDiv));
 End;
 
-Function GetDate(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): TDateTime; OverLoad;
+Function GetDate(LB: TStrings; Index, N: Integer; Default: TDateTime=0; CDiv: Char=ChDiv): TDateTime; OverLoad;
 Var St: String;
 Begin
   Result:=-1;
   If Index<0 Then
      Exit;
   St:=LB[Index];
-  Result:=GetDate(St,N,CDiv);
+  Result:=GetDate(St,N,Default,CDiv);
 End;
 
 Function GetDate(const sJSON, fieldname: String; Default: TDateTime=0): TDateTime;
@@ -1522,11 +1533,11 @@ Begin
   Result:=StrToDateTimeFmt(St);
 End;
 
-Function GetStr(OJSON: TJSONObject; const fieldname: String; Default: String=''): String;
+Function GetStr(OJSON: TJSONObject; const fieldname: String): String;
 Var St: String;
     JSONValue: TJSONValue;
 begin
-  St:=Default;
+  St:='';
   try
     JSONValue:=oJSON.GetValue(FieldName);
     if (JSONValue is TJSONArray) or
@@ -1536,17 +1547,24 @@ begin
        If oJSON.TryGetValue<string>(fieldname,St) Then
           ;
   except
-    St:=Default;
+    St:='';
   end;
   Result:=St;
 end;
 
 Function GetStr(FT: TDataSet; const FieldName: String): String; Overload;
+var St,aSt: String;
 Begin
-  Result:=Trim(FT.FieldByName(FieldName).AsString);
+  St:='';
+  try
+    St:=Trim(FT.FieldByName(FieldName).AsString);
+  finally
+
+  end;
+  Result:=St;
 End;
 
-Function GetStr(const St: String; Index: Integer; CDiv: String): String; Overload;
+Function GetStr(const St: String; Index: Integer; CDiv: String=''): String; Overload;
 Var S,StL: String;
     L,P:  Integer;
 Begin
@@ -1569,11 +1587,6 @@ Begin
   Result:=TrimS(S);
 End;
 
-Function GetStr(Const St: String; Index: Integer; CDiv: Char=ChDiv): String; Overload;
-Begin
-  result:=GetStr(St,Index,String(CDiv));
-End;
-
 Function GetStr(LB: TStrings; Index, N: Integer; CDiv: Char=ChDiv): String; OverLoad;
 Var St: String;
 Begin
@@ -1584,17 +1597,18 @@ Begin
   Result:=GetStr(St,N,CDiv);
 End;
 
-Function  GetStr(const sJSON, fieldname: String; Default: String=''): String;
+Function  GetStr(const sJSON, fieldname: String ): String;
 var JSON: TJSONObject;
+    sResp: String;
 begin
+  sResp:='';
   JSON:=CreateTJSONObject(sJSON);
   if JSON<>Nil then
      begin
-       Result:=GetStr(JSON,fieldName);
+       sResp:=GetStr(JSON,fieldName);
        FreeAndNil(JSON);
-     end
-  else
-     result:='';
+     end;
+  result:=sResp;
 end;
 
 function GetStr(Item: IXMLNode): String; Overload;
@@ -1640,9 +1654,10 @@ begin
                JSON.AddPair(field, Values[I].VInt64^);
              vtInteger:
                JSON.AddPair(field, Values[I].VInteger);
-             vtExtended,
-             vtCurrency:
+             vtExtended:
                JSON.AddPair(field, Values[I].VExtended^);
+             vtCurrency:
+               JSON.AddPair(field, Values[I].VCurrency^);
              else
                if (Values[I].VType = vtVariant) then
                   JSON.AddPair(field, TJSONNull.Create)

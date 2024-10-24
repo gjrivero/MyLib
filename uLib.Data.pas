@@ -34,7 +34,7 @@ function SqlWhere( const fldNames:  Array of String;
 function GetDataSet( const sQuery: String;
                            pParams: TFDParams=Nil): TDataSet;
 function GetData( const sQuery: String;
-                           pParams: TFDParams=Nil): TJSONValue; Overload;
+                        pParams: TFDParams=Nil): TJSONValue; Overload;
 function GetData( const sQuery: String;
                   const fldNames:  Array of String;
                   const fldValues: Array of const): TJSONValue; Overload;
@@ -84,6 +84,11 @@ function ExecTransact( cSQL: String;
                        sDecl: String='';
                        sFields: String='';
                        pParams: TFDParams=nil): TJSONObject; Overload;
+function ExecTransact( cSQL: String;
+                       sDecl: String;
+                       sFields: String;
+                       const fldNames: Array of String;
+                       const fldValues: Array of const): TJSONObject; Overload;
 
 function FieldsString( const fields: array of String; alias: String=''  ): String;
 function GetDriverID(CnxDriver: String): TFDRDBMSKind;
@@ -91,29 +96,33 @@ function DatabaseExists( const nameDB: String): boolean;
 
 Function sqlInsert( const filename: String;
                           aJSON: TJSONObject;
-                          fldReturn: String=''): String; overload;
+                          fReturn: string=''): String; overload;
 
-Function sqlInsert( const filename, aJSON: string;
-                          fldReturn: String=''): String; overload;
+Function sqlInsert( const filename,
+                          aJSON: string;
+                          fReturn: string=''): String; overload;
 
 Function sqlUpdate( const filename: String;
                           aJSON: TJSONObject;
                           whereStr: String=''): String; overload;
 
-Function sqlUpdate( const filename, aJSON: string;
+Function sqlUpdate( const filename,
+                          aJSON: string;
                           whereStr: String=''): String; overload;
 
 Function sqlInsertOrUpdate( const filename: String;
                                   aJSON: TJSONObject;
                                   whereStr: String;
-                                  fldReturn: String=''): String; overload;
+                                  fReturn: string=''): String; overload;
 
 Function sqlInsertOrUpdate( const filename, aJSON: string;
                                   whereStr: String;
-                                  fldReturn: String=''): String; overload;
+                                  fReturn: string=''): String; overload;
 
 function SetFDParams(const fldNames:  Array of String;
                      const fldValues: Array of Const): TFDParams; overload;
+
+procedure SetTempTable(sCmd: TStringList; var fldsReturn: string);
 
 implementation
 
@@ -149,7 +158,8 @@ type
     { Private declarations }
     //function ParamsToJSONObject(params: TFDParams): TJSONObject;
     function cmdAdd(Const dbTableName,
-                          Context: String): TJSONObject;
+                          Context: String;
+                          fReturn: string=''): TJSONObject;
     function cmdUpd(Const dbTableName,
                           Context: String;
                           Condition: String=''): TJSONObject;
@@ -294,48 +304,70 @@ end;
 
 Function sqlInsert( const filename: String;
                           aJSON: TJSONObject;
-                          fldReturn: String=''): String; overload;
+                          fReturn: string=''): String; overload;
 Var
+  sfld,
+  sval,
   sFields,
   sValues,
   sSetVal: String;
+  useTempTable: Boolean;
   TS: TStringList;
 Begin
   GetFieldsValues( aJSON,sFields, sValues, sSetVal);
   TS:=TStringList.Create;
-  TS.Add('INSERT INTO '+fileName+' ('+sFields+')');
-  TS.Add('       VALUES ('+sValues+');');
-  if Not fldReturn.IsEmpty then
-     case RDBMSKind of
-      TFDRDBMSKinds.MSSQL:
-        begin
-          TS.Insert(1,'       OUTPUT inserted.id,'+fldReturn.QuotedString+
-                                    ',inserted.'+fldReturn);
-          TS.Insert(2,'         INTO @TempTable');
-        end;
-     TFDRDBMSKinds.MYSQL:
-       begin
-         TS.Add('SELECT LAST_INSERT_ID() INTO InsertedId;');
-         TS.Add('INSERT INTO #TempTable (id,field,value)');
-         TS.Add('       (@InsertedID,'+GetStr(sFields,1,',').QuotedString+','+
-                           GetStr(sValues,1,',').QuotedString+');');
-       end;
-     TFDRDBMSKinds.PostgreSQL:
-       begin
-         TS.Add('RETURNING id INTO InsertedId;');
-         TS.Add('INSERT INTO #TempTable (id,field,value)');
-         TS.Add('       (@InsertedID,'+GetStr(sFields,1,',').QuotedString+','+
-                                      GetStr(sValues,1,',').QuotedString+');');
-       end;
+  useTempTable:=fReturn<>'';
+  if useTempTable then
+     begin
+       sfld:=fReturn;
+       sval:=ReplaceText(GetStr(aJSON,sfld),'`','');
+       TS.Add('BEGIN TRY');
+     end;
+  TS.Add(StringOfChar(' ',4*ord(useTempTable))+
+          'INSERT INTO '+fileName+' ('+sFields+')');
+  TS.Add(StringOfChar(' ',4*ord(useTempTable))+
+          '       VALUES ('+sValues+');');
+  if useTempTable  then
+     begin
+      TS.Add('  END TRY');
+      TS.Add('  BEGIN CATCH');
+      TS.Add('    INSERT INTO @TempTable (id,field,value)');
+      TS.Add('         VALUES (0, '+QuotedStr(sfld)+', '+
+                sVal+'+'+QuotedStr(': ')+
+                '+ERROR_MESSAGE());');
+      TS.Add('  END CATCH');
+      case RDBMSKind of
+       TFDRDBMSKinds.MSSQL:
+         begin
+           TS.Insert(2,'         OUTPUT inserted.id,'+
+                                 sfld.QuotedString+', '+sval);
+           TS.Insert(3,'           INTO @TempTable');
+         end;
+       TFDRDBMSKinds.MYSQL:
+         begin
+           TS.Add('SELECT LAST_INSERT_ID() INTO InsertedId;');
+           TS.Add('INSERT INTO #TempTable (id,field,value)');
+           TS.Add('       (@InsertedID,'+
+                             sfld.QuotedString+','+sVal+');');
+         end;
+       TFDRDBMSKinds.PostgreSQL:
+         begin
+           TS.Add('RETURNING id INTO InsertedId;');
+           TS.Add('INSERT INTO #TempTable (id,field,value)');
+           TS.Add('       (@InsertedID,'+
+                          sfld.QuotedString+','+sval+');');
+         end;
+      end;
      end;
   result:=TS.Text;
   TS.Free;
 End;
 
-Function sqlInsert( const filename, aJSON: string;
-                          fldReturn: String=''): String; overload;
+Function sqlInsert( const filename,
+                          aJSON: string;
+                          fReturn: string=''): String; overload;
 begin
-  result:=sqlInsert(filename,CreateTJSONObject(aJSON),fldReturn);
+  result:=sqlInsert(filename,CreateTJSONObject(aJSON),fReturn);
 end;
 
 Function sqlUpdate( const filename: String;
@@ -361,16 +393,17 @@ Begin
   result:=sCmd;
 end;
 
-Function sqlUpdate( const filename, aJSON: string;
-                          whereStr: String=''): String; overload;
+Function sqlUpdate( const filename,
+                    aJSON: string;
+                    whereStr: String=''): String; overload;
 begin
   result:=sqlUpdate(filename, CreateTJSONObject(aJSON),whereStr);
 end;
 
 Function sqlInsertOrUpdate( const filename: String;
-                                  aJSON: TJSONObject;
-                                  whereStr: String;
-                                  fldReturn: String=''): String; overload;
+                            aJSON: TJSONObject;
+                            whereStr: String;
+                            fReturn: string=''): String; overload;
 Var st: String;
 Begin
   st:='';
@@ -384,15 +417,30 @@ Begin
          st:=st+#13' IF @@ROWCOUNT=0'#13;
        end;
      End;
-  st:=st+sqlInsert(filename,aJSON,fldReturn);
+  st:=st+sqlInsert(filename,aJSON,fReturn);
   Result:=St;
 End;
 
-Function sqlInsertOrUpdate( const filename, aJSON: string;
-                                  whereStr: String;
-                                  fldReturn: String=''): String; overload;
+Function sqlInsertOrUpdate( const filename,
+                                  aJSON: string;
+                            whereStr: String;
+                            fReturn: string=''): String; overload;
 begin
-  result:=sqlInsertOrUpdate( filename, CreateTJSONObject(aJSON),whereStr,fldReturn);
+  result:=sqlInsertOrUpdate( filename, CreateTJSONObject(aJSON),whereStr, fReturn);
+end;
+
+function SetFDParams( fldNames: Array Of String;
+                      fldValues: Array Of Variant): TFDParams; overload;
+Var
+    I:  Integer;
+    fName: String;
+Begin
+  result:=TFDParams.Create;
+  for I:=Low(fldNames) To High(fldNames) Do
+   Begin
+     fName:=fldNames[I].ToLower;
+     result.Add(fname,fldValues[I]);
+   End;
 end;
 
 function SetFDParams( const fldNames:  Array of String;
@@ -412,8 +460,8 @@ begin
       vtInteger: result.Add(fName,fldValues[I].VInteger);
       vtChar: result.Add(fName,fldValues[I].VChar);
       vtWideChar: result.Add(fName,fldValues[I].VWideChar);
-      vtExtended,
-      vtCurrency: result.Add(fName,fldValues[I].VExtended^);
+      vtExtended: result.Add(fName,fldValues[I].VExtended^);
+      vtCurrency: result.Add(fName,fldValues[I].VCurrency^);
       vtPChar: result.Add(fName,UnicodeString(fldValues[I].VPChar^));
       vtPWideChar: result.Add(fName,fldValues[I].VPWideChar^);
 
@@ -608,12 +656,8 @@ function TFDMController.execTrans( cSQL, sDecl: TStringList;
 var
    cCmd: TStringList;
    I: Integer;
-   OkArray: Boolean;
 begin
   result:=TJSONObject.Create;
-  OkArray:=False;
-  If ContainsText(sFields,'SELECT ') then
-     OkArray:=ContainsText(sFields,' FROM ');
   cCmd:=TStringList.Create;
   SetHeader(cCmd,true);
   Case RDBMSKind of
@@ -625,12 +669,15 @@ begin
        cCmd.Add('  ,@ErrorSeverity INT');
        cCmd.Add('  ,@ErrorState    INT');
        cCmd.Add('  ,@ErrorNumber   INT');
-       cCmd.Add('  ,@ErrorLine     INT'+IfThen(sDecl=Nil,';',''));
+       cCmd.Add('  ,@ErrorLine     INT'+IfThen(sDecl.Text='',';',''));
        if sDecl<>Nil then
           begin
             var sText:=sDecl.Text;
+            delete(sText,length(sText)-1,2);
             if (AnsiLastChar(sText)<>';') then
-               sText:=sText+';';
+               begin
+                 sText:=sText+';';
+               end;
             cCmd.AddStrings(sText);
           end;
        cCmd.Add('BEGIN TRANSACTION;');
@@ -661,10 +708,10 @@ begin
    TFDRDBMSKinds.MSSQL:
      begin
        cCmd.Add('  COMMIT TRANSACTION;');
-       if OkArray then
-          cCmd.Add('  '+sFields)
-       else
-          if sFields<>'' then
+       if sFields<>'' then
+          if Pos('SELECT ',sFields)>0 then
+             cCmd.Add('  '+sFields)
+          else
              cCmd.Add('  SELECT '+sFields+';');
        cCmd.Add('END TRY');
        cCmd.Add('BEGIN CATCH');
@@ -736,29 +783,34 @@ begin
   cCmd.Destroy;
 End;
 
-function TFDMController.cmdAdd( const dbTableName, Context: String): TJSONObject;
+procedure SetTempTable(sCmd: TStringList; var fldsReturn: string);
+begin
+  case RDBMSKind Of
+    TFDRDBMSKinds.MSSQL:
+         begin
+          sCmd.Add('DECLARE ');
+          sCmd.Add('  @TempTable TABLE (');
+          sCmd.Add('    id INT,');
+          sCmd.Add('    field VARCHAR(30),');
+          sCmd.Add('    value NVARCHAR(MAX)');
+          sCmd.Add(');');
+        end;
+  end;
+  fldsReturn:='SELECT id, field, value FROM @TempTable;';
+end;
+
+function TFDMController.cmdAdd( const dbTableName, Context: String;
+                                      fReturn: string=''): TJSONObject;
 Var
-  sCmd,
-  Dcl: TStringList;
+  Dcl,
+  sCmd: TStringList;
   AJSON: TJSONArray;
   fldsReturn: String;
   I,error: Integer;
 begin
   sCmd:=TStringList.create;
   Dcl:=TStringList.create;
-  Case RDBMSKind Of
-    TFDRDBMSKinds.MSSQL:
-        begin
-          Dcl.Add(';');
-          Dcl.Add('DECLARE ');
-          Dcl.Add('  @TempTable TABLE (');
-          Dcl.Add('    id INT,');
-          Dcl.Add('    field VARCHAR(30),');
-          Dcl.Add('    value NVARCHAR(MAX)');
-          Dcl.Add('  )');
-          fldsReturn:='(SELECT id, field, value FROM @TempTable) insertedrows';
-        end;
-  end;
+  SetTempTable(Dcl,fldsReturn);
   try
     if Context.StartsWith('[') then
        begin
@@ -766,13 +818,13 @@ begin
          for I := 0 to AJSON.Count-1 do
            begin
              var JSON:=AJSON.items[i].ToJSON;
-             sCmd.Add(sqlInsert(dbTableName,jSON,fldsReturn));
+             sCmd.Add(sqlInsert(dbTableName,jSON,fReturn));
            end;
          AJSON.Free;
        end
     else
        begin
-         sCmd.Add(sqlInsert(dbTableName,Context,fldsReturn));
+         sCmd.Add(sqlInsert(dbTableName,Context,fReturn));
        end;
     result:=execTrans(sCmd,Dcl,fldsReturn,nil);
   finally
@@ -796,7 +848,7 @@ begin
   try
     Case RDBMSKind Of
       TFDRDBMSKinds.MSSQL:
-         fldsReturn:= '(SELECT @@ROWCOUNT) updatedrows';
+         fldsReturn:= 'SELECT @@ROWCOUNT updatedrows';
     End;
     if Context.StartsWith('[') then
        begin
@@ -804,14 +856,12 @@ begin
          for I := 0 to AJSON.count-1 do
           begin
             oJSON:=TJSOnObject(AJSON.Items[I]);
-
             sWhere:='';
             lValue:=oJSON.FindValue('id');
             If lValue<>Nil Then
                begin
                  sWhere:='(id='+lValue.Value+')';
                end;
-
             sCmd.Add(sqlUpdate(dbTableName,oJSON,sWhere));
           end;
          AJSON.Free;
@@ -1258,6 +1308,26 @@ begin
     result:=DMC.execTrans(cSQL, sDecl, sFields, pParams);
   finally
     DMC.Destroy;
+  end;
+end;
+
+function ExecTransact( cSQL: String;
+                       sDecl: String;
+                       sFields: String;
+                       const fldNames: Array of String;
+                       const fldValues: Array of const): TJSONObject; Overload;
+Var
+   DMC: TFDMController;
+   Error: Integer;
+   params: TFDParams;
+begin
+  DMC:=TFDMController.Create(dmMain);
+  Params:=SetFDParams(fldNames,fldValues);
+  try
+    result:=ExecTransact(cSQL,sDecl,sFields,params);
+  finally
+    DMC.Destroy;
+    Params.Free;
   end;
 end;
 

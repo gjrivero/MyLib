@@ -179,14 +179,14 @@ begin
   valid:=GetBool(aJSON,SS_VALID);
   if Valid And (Action<>ACT_DIAGNOSTIC) then
      begin
-       var sRole:=GetStr(aJSON,SS_ROLE);
+       var sRole:=GetStr(aJSON,SS_USER_ROLE);
        if sRole='' then
           sRole:='standard';
        UserRoles.Add(sRole);
        Session := TDSSessionManager.GetThreadSession;
        SetValue(Session,SS_SESSIONID, Session.SessionName);
        SetValue(Session,SS_USER_NAME, AUser);
-       SetValue(Session,SS_ROLE, sRole);
+       SetValue(Session,SS_USER_ROLE, sRole);
        SetValue(Session,SS_DEVELOPID, GetStr(aJSON,SS_DEVELOPID));
        SetValue(Session,SS_APPID, GetStr(aJSON,SS_APPID));
        SetValue(Session,SS_APPNAME, GetStr(aJSON,SS_APPNAME));
